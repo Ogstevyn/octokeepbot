@@ -5,6 +5,7 @@ A Telegram bot that reads what you save, remembers it in your own Walrus Memory 
 - Send a link to a video, article or post. OctoKeep summarises it so you do not have to watch it, lists the actions in it, asks what you plan to do, and comes back after the gap you choose (2 days by default) to ask whether you did it.
 - Say "I want to build an app on Thursday, remind me". OctoKeep confirms the time, asks up to three short questions, and on Thursday sends an organised plan.
 - Ask "what have I been ignoring?" or "what did I save about Rust?" and it answers from your memory.
+- Send a screenshot or a screen recording instead of a link. A vision model reads the screenshot (several sent together become one summary) and a speech model transcribes the recording. Voice messages work anywhere you would type.
 
 Bot: [t.me/OctoKeep_bot](https://t.me/OctoKeep_bot). Landing page: `site/`, hosted on Walrus Sites (see `docs/WALRUS_SITES.md`).
 
@@ -21,7 +22,7 @@ If a memory write fails it is queued and retried by the scheduler, so a relayer 
 
 ## Stack
 
-TypeScript on Node 20+, [grammY](https://grammy.dev) for Telegram, `@mysten-incubation/memwal` for Walrus Memory, the Vercel AI SDK with any OpenAI-compatible model (Groq, OpenRouter, OpenAI or a local Ollama), Neon Postgres, Luxon for timezones, Readability for articles. Deployed as Vercel functions: `api/telegram.ts` (webhook), `api/cron/tick.ts` (scheduler), `api/health.ts`.
+TypeScript on Node 20+, [grammY](https://grammy.dev) for Telegram, `@mysten-incubation/memwal` for Walrus Memory, the Vercel AI SDK with any OpenAI-compatible model (Groq, OpenRouter, OpenAI or a local Ollama), a vision model and Whisper on the same API for screenshots and recordings, Neon Postgres, Luxon for timezones, Readability for articles. Deployed as Vercel functions: `api/telegram.ts` (webhook), `api/cron/tick.ts` (scheduler), `api/health.ts`.
 
 ## Run it locally
 
@@ -65,7 +66,9 @@ The tests drive full conversations through the bot logic with the SDK's `MemWalM
 
 ## Limits
 
-- Instagram, Facebook and Threads posts are not fetched; those platforms forbid scraping and their embed APIs need an app token. Paste the caption and OctoKeep summarises that. X and TikTok use their public oEmbed endpoints.
+- Instagram, Facebook and Threads posts are not fetched; those platforms forbid scraping, and Instagram's embed API needs Meta app review and does not return the caption. Send a screenshot (tap "more" first so the whole caption shows) or a screen recording instead. X and TikTok use their public oEmbed endpoints.
+- Screenshots work for posts with text: captions, carousels, text on the image. A photo with no text has nothing to summarise unless you add a caption saying what to remember.
+- Recordings need speech. Telegram lets bots download files up to 20 MB, which is roughly two minutes of screen recording.
 - YouTube often blocks transcript requests from cloud servers. When it does, OctoKeep asks you to paste the description or key points.
 - Times are understood in the timezone you pick in `/start`; change it with `/timezone`.
 

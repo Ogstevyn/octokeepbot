@@ -1,5 +1,5 @@
 import type { Item, ItemKind, ItemStatus, User } from "../types.js";
-import type { ItemPatch, NewItem, OutboxEntry, Repo, UserPatch } from "./repo.js";
+import type { ItemPatch, MediaPart, NewItem, OutboxEntry, Repo, UserPatch } from "./repo.js";
 
 // In-process implementation used by tests and by `DATABASE_URL=memory` for
 // trying the bot locally without Postgres. Data is lost on restart.
@@ -8,6 +8,7 @@ export class MemoryRepo implements Repo {
   items = new Map<number, Item>();
   outbox = new Map<number, OutboxEntry & { nextTry: Date }>();
   seen = new Map<number, Date>();
+  parts = new Map<string, { userId: number; groupId: string; messageId: number; part: MediaPart | null; updatedAt: Date }>();
   private seq = 0;
   private outSeq = 0;
 
@@ -115,5 +116,26 @@ export class MemoryRepo implements Repo {
 
   async pruneSeenUpdates(before: Date) {
     for (const [k, v] of this.seen) if (v < before) this.seen.delete(k);
+  }
+
+  async addMediaPart(userId: number, groupId: string, messageId: number, now: Date) {
+    const key = `${userId}:${groupId}:${messageId}`;
+    if (!this.parts.has(key)) this.parts.set(key, { userId, groupId, messageId, part: null, updatedAt: now });
+  }
+
+  async finishMediaPart(userId: number, groupId: string, messageId: number, part: MediaPart, now: Date) {
+    const p = this.parts.get(`${userId}:${groupId}:${messageId}`);
+    if (p) Object.assign(p, { part: this.clone(part), updatedAt: now });
+  }
+
+  async claimMediaGroup(userId: number, groupId: string, quietSince: Date) {
+    const group = [...this.parts.entries()].filter(([, p]) => p.userId === userId && p.groupId === groupId);
+    if (!group.length || group.some(([, p]) => !p.part || p.updatedAt > quietSince)) return null;
+    for (const [k] of group) this.parts.delete(k);
+    return group.sort(([, a], [, b]) => a.messageId - b.messageId).map(([, p]) => p.part!);
+  }
+
+  async pruneMediaParts(before: Date) {
+    for (const [k, p] of this.parts) if (p.updatedAt < before) this.parts.delete(k);
   }
 }

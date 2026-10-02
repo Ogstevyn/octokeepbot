@@ -20,6 +20,12 @@ export interface OutboxEntry {
   attempts: number;
 }
 
+// Text read from one photo of an album, waiting for the rest of the album.
+export interface MediaPart {
+  caption: string;
+  text: string;
+}
+
 export interface Repo {
   getUser(id: number): Promise<User | null>;
   ensureUser(id: number, chatId: number, firstName: string): Promise<User>;
@@ -37,6 +43,14 @@ export interface Repo {
   deleteOutbox(id: number): Promise<void>;
   claimOutbox(now: Date, limit: number): Promise<OutboxEntry[]>;
   failOutbox(id: number, error: string, nextTry: Date): Promise<void>;
+
+  // Albums arrive as one update per photo. Each update records its part; the
+  // last one to finish claims them all. claimMediaGroup returns null while a
+  // part is still being read, or changed after quietSince, or was claimed.
+  addMediaPart(userId: number, groupId: string, messageId: number, now: Date): Promise<void>;
+  finishMediaPart(userId: number, groupId: string, messageId: number, part: MediaPart, now: Date): Promise<void>;
+  claimMediaGroup(userId: number, groupId: string, quietSince: Date): Promise<MediaPart[] | null>;
+  pruneMediaParts(before: Date): Promise<void>;
 
   markUpdateSeen(updateId: number): Promise<boolean>;
   pruneSeenUpdates(before: Date): Promise<void>;

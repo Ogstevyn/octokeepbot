@@ -1,7 +1,8 @@
 import { MemWalMock } from "@mysten-incubation/memwal";
 import type { z } from "zod";
 import type { Deps, Out } from "../src/bot/core.js";
-import { handleCallback, handleMessage } from "../src/bot/core.js";
+import { handleCallback, handleMedia, handleMessage, type IncomingMedia } from "../src/bot/core.js";
+import type { Media } from "../src/media/media.js";
 import { MemoryRepo } from "../src/db/memory.js";
 import type { Llm } from "../src/llm/llm.js";
 import { MemoryAuthError, wrapMemwal, type Memory, type MemwalLike } from "../src/memory/client.js";
@@ -102,13 +103,31 @@ export class FakeMemory {
   }
 }
 
-export function setup(opts: { now?: Date; llm?: Record<string, Handler>; fetch?: (url: string) => Promise<FetchResult> } = {}) {
+// Scripted vision and speech models. Image bytes and audio bytes are the
+// UTF-8 text the fake "reads", so a test can say what is in the picture.
+export class FakeMedia implements Media {
+  images: string[] = [];
+  audio: { filename: string; mime: string }[] = [];
+  failImages = false;
+  readImage: Media["readImage"] = async (bytes: Uint8Array, mime: string) => {
+    if (this.failImages) throw new Error("vision model unavailable");
+    this.images.push(mime);
+    return new TextDecoder().decode(bytes);
+  };
+  transcribe: Media["transcribe"] = async (bytes: Uint8Array, filename: string, mime: string) => {
+    this.audio.push({ filename, mime });
+    return new TextDecoder().decode(bytes);
+  };
+}
+
+export function setup(opts: { now?: Date; llm?: Record<string, Handler>; fetch?: (url: string) => Promise<FetchResult>; media?: Media } = {}) {
   let now = opts.now ?? new Date("2026-10-02T10:00:00Z"); // a Friday
   const repo = new MemoryRepo();
   const out = new FakeOut();
   const mem = new FakeMemory();
   const llm = new FakeLlm(opts.llm ?? {});
   const logs: string[] = [];
+  const media = opts.media ?? new FakeMedia();
   const deps: Deps = {
     repo,
     out,
@@ -123,16 +142,32 @@ export function setup(opts: { now?: Date; llm?: Record<string, Handler>; fetch?:
     now: () => now,
     adminIds: new Set([1]),
     envCreds: { accountId: GOOD_ACCOUNT, key: GOOD_KEY },
+    media,
+    // Albums wait for their other photos; tests move the clock instead.
+    sleep: async (ms) => {
+      now = new Date(now.getTime() + ms);
+    },
     log: (m, e) => logs.push(`${m} ${e ?? ""}`),
   };
   let msgId = 1;
   const user = { userId: 1, chatId: 1, firstName: "Stephen" };
   const say = (text: string) => handleMessage(deps, { ...user, messageId: ++msgId, text }).then(() => msgId);
   const tap = (data: string, messageId = out.last().id) => handleCallback(deps, { ...user, messageId, data });
+  // Sends a photo, video or voice message whose "content" is `content`.
+  const send = (kind: IncomingMedia["kind"], content: string, extra: Partial<IncomingMedia> = {}) =>
+    handleMedia(deps, {
+      ...user,
+      messageId: ++msgId,
+      kind,
+      mime: kind === "image" ? "image/jpeg" : kind === "voice" ? "audio/ogg" : "video/mp4",
+      caption: "",
+      download: async () => new TextEncoder().encode(content),
+      ...extra,
+    }).then(() => msgId);
   const setNow = (d: Date) => {
     now = d;
   };
-  return { deps, repo, out, mem, llm, logs, say, tap, setNow, user };
+  return { deps, repo, out, mem, llm, logs, media, say, send, tap, setNow, user };
 }
 
 // Gets a user through /start, timezone and /connect.

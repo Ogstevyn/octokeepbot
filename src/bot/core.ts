@@ -21,6 +21,8 @@ import {
 import { memoryLine, MemoryAuthError, type Memory, type Recalled } from "../memory/client.js";
 import { afterNudge } from "../schedule.js";
 import type { FetchResult } from "../sources/index.js";
+import type { MediaPart } from "../db/repo.js";
+import { hasSpeech, hasText, type Media } from "../media/media.js";
 import { findUrl } from "../sources/index.js";
 import {
   addDays,
@@ -73,6 +75,8 @@ export interface Deps {
   now(): Date;
   adminIds: Set<number>;
   envCreds: MemwalCreds | null;
+  media: Media;
+  sleep(ms: number): Promise<void>;
   log(message: string, extra?: unknown): void;
 }
 
@@ -82,6 +86,22 @@ export interface Incoming {
   messageId: number;
   firstName: string;
   text: string;
+}
+
+// A photo, video or voice message. `download` fetches the file from Telegram.
+export interface IncomingMedia {
+  userId: number;
+  chatId: number;
+  messageId: number;
+  firstName: string;
+  // image: a screenshot to read. recording: a video or audio clip to save.
+  // voice: a spoken message, handled as if it were typed.
+  kind: "image" | "recording" | "voice";
+  mime: string;
+  caption: string;
+  groupId?: string;
+  fileSize?: number;
+  download(): Promise<Uint8Array>;
 }
 
 export interface Callback {
@@ -561,11 +581,22 @@ async function verifyAndSave(d: Deps, u: User, creds: MemwalCreds) {
 // Saved posts
 // ---------------------------------------------------------------------------
 
-async function startSave(d: Deps, u: User, url: string | undefined, pastedText?: string) {
+// What to send when a link cannot be read, depending on what this bot can take.
+function sendInstead(d: Deps): string {
+  const options = [
+    d.media.readImage ? 'a screenshot of the post (tap "more" first so the whole caption shows)' : "",
+    d.media.transcribe ? "a screen recording if it is a video" : "",
+    "the caption pasted as text",
+  ].filter(Boolean);
+  const list = options.length > 1 ? `${options.slice(0, -1).join(", ")}, or ${options.at(-1)}` : options[0];
+  return `Send me ${list}, and I will summarise it.`;
+}
+
+async function startSave(d: Deps, u: User, url: string | undefined, pastedText?: string, label = "Pasted text") {
   await d.out.typing(u.chatId);
   let content: Content;
   if (pastedText) {
-    let source = "Pasted text";
+    let source = label;
     if (url) {
       try {
         source = new URL(url).hostname.replace(/^www\./, "");
@@ -573,15 +604,15 @@ async function startSave(d: Deps, u: User, url: string | undefined, pastedText?:
         // Keep the generic label.
       }
     }
-    content = { title: "Pasted text", text: pastedText, source, url };
+    content = { title: label, text: pastedText, source, url };
   } else {
     const r = await d.fetchContent(url!);
     if (!r.ok) {
       await setPending(d, u, { kind: "paste_for", url: url! });
       const msg =
         r.reason === "paste"
-          ? `I cannot read ${esc(r.source)} posts directly${r.title ? ` ("${esc(r.title)}")` : ""}. Paste the caption or the text here and I will summarise it.`
-          : "I could not open that link. If it needs a login, paste the text here and I will summarise it.";
+          ? `I cannot read ${esc(r.source)} posts directly${r.title ? ` ("${esc(r.title)}")` : ""}. ${sendInstead(d)}`
+          : `I could not open that link. ${sendInstead(d)}`;
       await d.out.send(u.chatId, msg);
       return;
     }
@@ -910,3 +941,148 @@ export async function sendNudge(d: Deps, u: User, item: Item, now: Date): Promis
 }
 
 export { LlmError };
+
+// ---------------------------------------------------------------------------
+// Screenshots, screen recordings and voice messages
+// ---------------------------------------------------------------------------
+
+// Telegram lets bots download files up to 20 MB.
+export const MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+// An album arrives as one update per photo, within a second or two.
+export const ALBUM_QUIET_MS = 2500;
+
+export async function handleMedia(d: Deps, m: IncomingMedia) {
+  const u = await d.repo.ensureUser(m.userId, m.chatId, m.firstName);
+  if (!(await ready(d, u))) return;
+
+  if (m.fileSize && m.fileSize > MAX_DOWNLOAD_BYTES) {
+    await d.out.send(u.chatId, "That file is over 20 MB, the most Telegram lets me download. Send a shorter clip (under about 2 minutes) or a smaller file.");
+    return;
+  }
+  if (m.kind === "image") return readScreenshot(d, u, m);
+  return listen(d, u, m);
+}
+
+async function readScreenshot(d: Deps, u: User, m: IncomingMedia) {
+  if (!d.media.readImage) {
+    await d.out.send(u.chatId, "Reading screenshots is not set up on this bot. Paste the text instead.");
+    return;
+  }
+  if (m.fileSize && m.fileSize > MAX_IMAGE_BYTES) {
+    await d.out.send(u.chatId, "That image is too large to read. Send it as a photo rather than a file.");
+    return;
+  }
+
+  if (m.groupId) await d.repo.addMediaPart(u.id, m.groupId, m.messageId, d.now());
+  else await d.out.typing(u.chatId);
+
+  let text = "";
+  try {
+    text = await d.media.readImage(await m.download(), m.mime);
+  } catch (e) {
+    d.log("reading image failed", String((e as Error).message ?? e));
+    if (!m.groupId) {
+      await d.out.send(u.chatId, "I could not read that image right now. Try again in a minute, or paste the text.");
+      return;
+    }
+  }
+  const part: MediaPart = { caption: m.caption, text };
+  if (!m.groupId) return saveScreenshots(d, u, [part]);
+
+  // Every photo of the album waits; the last one to finish reading claims the
+  // whole album and makes one summary.
+  await d.repo.finishMediaPart(u.id, m.groupId, m.messageId, part, d.now());
+  await d.sleep(ALBUM_QUIET_MS);
+  const parts = await d.repo.claimMediaGroup(u.id, m.groupId, new Date(d.now().getTime() - (ALBUM_QUIET_MS - 300)));
+  if (!parts) return;
+  const fresh = (await d.repo.getUser(u.id)) ?? u;
+  return saveScreenshots(d, fresh, parts);
+}
+
+async function saveScreenshots(d: Deps, u: User, parts: MediaPart[]) {
+  const captions = parts.map((p) => p.caption.trim()).filter(Boolean).join("\n");
+  const pendingUrl = u.pending?.kind === "paste_for" ? u.pending.url : undefined;
+  const url = findUrl(captions) ?? pendingUrl;
+  const note = (url ? captions.replace(url, "") : captions).trim();
+  const readable = parts.filter((p) => hasText(p.text));
+
+  if (!readable.length && note.length < 20) {
+    const seen = parts.map((p) => p.text.match(/^\s*image:\s*(.+)$/im)?.[1]).find(Boolean);
+    await d.out.send(
+      u.chatId,
+      [
+        seen ? `I only see a picture (${esc(clip(seen, 200))}), with no text to summarise.` : "I could not find any text in that image.",
+        'If the caption is cut off at "more", tap it first and screenshot again. If it is a video, send a screen recording instead. You can also add a caption saying what you want to remember.',
+      ].join(" "),
+    );
+    return;
+  }
+
+  const body = [
+    note ? `Note from the user: ${note}` : "",
+    ...parts.map((p, i) => (p.text ? `${parts.length > 1 ? `Screenshot ${i + 1}` : "Screenshot"}:\n${p.text}` : "")),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  if (pendingUrl) await setPending(d, u, null);
+  return startSave(d, u, url, body, parts.length > 1 ? `${parts.length} screenshots` : "Screenshot");
+}
+
+const FILE_NAMES: Record<string, string> = {
+  "audio/ogg": "voice.ogg",
+  "audio/mpeg": "audio.mp3",
+  "audio/mp3": "audio.mp3",
+  "audio/mp4": "audio.m4a",
+  "audio/x-m4a": "audio.m4a",
+  "audio/m4a": "audio.m4a",
+  "audio/wav": "audio.wav",
+  "audio/x-wav": "audio.wav",
+  "audio/flac": "audio.flac",
+  "audio/webm": "audio.webm",
+  "video/webm": "video.webm",
+  "video/mpeg": "video.mpeg",
+};
+// Telegram sends most videos as MP4; iPhone recordings sent as files are
+// QuickTime, which the same decoder reads, so they go up as .mp4 too.
+export const fileNameFor = (mime: string) => FILE_NAMES[mime.toLowerCase()] ?? (mime.startsWith("audio/") ? "audio.ogg" : "video.mp4");
+
+async function listen(d: Deps, u: User, m: IncomingMedia) {
+  if (!d.media.transcribe) {
+    await d.out.send(u.chatId, m.kind === "voice" ? "I cannot listen to voice messages on this setup. Type it instead." : "Transcribing videos is not set up on this bot. Paste the caption or key points instead.");
+    return;
+  }
+  await d.out.typing(u.chatId);
+  let transcript: string;
+  try {
+    transcript = await d.media.transcribe(await m.download(), fileNameFor(m.mime), m.mime);
+  } catch (e) {
+    d.log("transcription failed", String((e as Error).message ?? e));
+    await d.out.send(u.chatId, "I could not process that recording right now. Try again in a minute.");
+    return;
+  }
+
+  if (m.kind === "voice") {
+    if (!transcript) {
+      await d.out.send(u.chatId, "I could not hear anything in that voice message.");
+      return;
+    }
+    await d.out.send(u.chatId, `<i>Heard:</i> ${esc(clip(transcript, 600))}`);
+    return handleMessage(d, { userId: m.userId, chatId: m.chatId, messageId: m.messageId, firstName: m.firstName, text: transcript });
+  }
+
+  const pendingUrl = u.pending?.kind === "paste_for" ? u.pending.url : undefined;
+  const url = findUrl(m.caption) ?? pendingUrl;
+  const note = (url ? m.caption.replace(url, "") : m.caption).trim();
+  const spoken = hasSpeech(transcript);
+  if (!spoken && note.length < 20) {
+    await d.out.send(
+      u.chatId,
+      "I could not hear any speech in that video. If it is mostly text on screen or music, send a screenshot of the caption instead, or paste the key points.",
+    );
+    return;
+  }
+  const body = [note ? `Note from the user: ${note}` : "", spoken ? `Transcript of the video:\n${transcript}` : ""].filter(Boolean).join("\n\n");
+  if (pendingUrl) await setPending(d, u, null);
+  return startSave(d, u, url, body, "Screen recording");
+}

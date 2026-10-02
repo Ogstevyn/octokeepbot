@@ -19,14 +19,32 @@ const timer = setInterval(async () => {
   }
 }, 60_000);
 
+let running = true;
 const stop = () => {
+  running = false;
   clearInterval(timer);
-  void bot.stop();
+  process.exit(0);
 };
 process.once("SIGINT", stop);
 process.once("SIGTERM", stop);
 
-await bot.start({
-  allowed_updates: ["message", "callback_query"],
-  onStart: (me) => console.log(`OctoKeep is running as @${me.username} (polling). Press Ctrl+C to stop.`),
-});
+// Long polling that handles updates concurrently, the way the webhook does in
+// production. grammY's bot.start() handles one update at a time, which would
+// keep the photos of an album from being combined into one summary.
+await bot.init();
+console.log(`OctoKeep is running as @${bot.botInfo.username} (polling). Press Ctrl+C to stop.`);
+let offset = 0;
+while (running) {
+  let updates;
+  try {
+    updates = await bot.api.getUpdates({ offset, timeout: 30, allowed_updates: ["message", "callback_query"] });
+  } catch (e) {
+    console.error("[poll] getUpdates failed, retrying", String(e));
+    await new Promise((r) => setTimeout(r, 3000));
+    continue;
+  }
+  for (const update of updates) {
+    offset = update.update_id + 1;
+    bot.handleUpdate(update).catch((e) => console.error("[poll] update failed", e));
+  }
+}

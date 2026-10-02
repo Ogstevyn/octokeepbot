@@ -19,6 +19,9 @@ const schema = z.object({
   LLM_BASE_URL: z.string().optional(),
   LLM_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().optional(),
+  // Screenshots and screen recordings. "off" disables either one.
+  VISION_MODEL: z.string().optional(),
+  TRANSCRIBE_MODEL: z.string().optional(),
   OLLAMA_HOST: z.string().default("http://localhost:11434"),
 
   ADMIN_TELEGRAM_IDS: z.string().optional(),
@@ -27,14 +30,20 @@ const schema = z.object({
 export type Config = z.infer<typeof schema> & {
   adminIds: Set<number>;
   llm: { baseURL: string; apiKey: string; model: string; provider: string };
+  media: { visionModel: string | null; transcribeModel: string | null };
 };
 
-const defaults: Record<string, { baseURL: string; model: string }> = {
-  groq: { baseURL: "https://api.groq.com/openai/v1", model: "llama-3.3-70b-versatile" },
-  openrouter: { baseURL: "https://openrouter.ai/api/v1", model: "meta-llama/llama-3.3-70b-instruct" },
-  openai: { baseURL: "https://api.openai.com/v1", model: "gpt-4o-mini" },
-  ollama: { baseURL: "", model: "llama3.1" },
-  "openai-compatible": { baseURL: "", model: "" },
+const defaults: Record<string, { baseURL: string; model: string; vision: string; transcribe: string }> = {
+  groq: { baseURL: "https://api.groq.com/openai/v1", model: "openai/gpt-oss-120b", vision: "qwen/qwen3.8-27b", transcribe: "whisper-large-v3-turbo" },
+  openrouter: { baseURL: "https://openrouter.ai/api/v1", model: "meta-llama/llama-3.3-70b-instruct", vision: "", transcribe: "" },
+  openai: { baseURL: "https://api.openai.com/v1", model: "gpt-4o-mini", vision: "gpt-4o-mini", transcribe: "whisper-1" },
+  ollama: { baseURL: "", model: "llama3.1", vision: "", transcribe: "" },
+  "openai-compatible": { baseURL: "", model: "", vision: "", transcribe: "" },
+};
+
+const mediaModel = (value: string | undefined, fallback: string) => {
+  if (value?.toLowerCase() === "off") return null;
+  return value ?? (fallback || null);
 };
 
 let cached: Config | undefined;
@@ -53,10 +62,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const d = defaults[c.LLM_PROVIDER]!;
   const baseURL = c.LLM_BASE_URL ?? (c.LLM_PROVIDER === "ollama" ? `${c.OLLAMA_HOST.replace(/\/+$/, "")}/v1` : d.baseURL);
   const model = c.LLM_MODEL ?? d.model;
+  // A pasted API key in the model field is an easy slip, and the model name is
+  // printed in logs and /api/health, so refuse it rather than leak it.
+  if (/^(gsk_|sk-|sk_|AIza|or-)/.test(model) || (model.length > 40 && !/[\/:.-]/.test(model))) {
+    throw new Error("Invalid environment:\n  LLM_MODEL looks like an API key. Put the key in LLM_API_KEY and a model name (or nothing) in LLM_MODEL");
+  }
   if (!baseURL) throw new Error("Invalid environment:\n  LLM_BASE_URL is required when LLM_PROVIDER is openai-compatible");
   if (!model) throw new Error("Invalid environment:\n  LLM_MODEL is required when LLM_PROVIDER is openai-compatible");
   const apiKey = c.LLM_API_KEY ?? (c.LLM_PROVIDER === "ollama" ? "ollama" : "");
   if (!apiKey) throw new Error(`Invalid environment:\n  LLM_API_KEY is required for LLM_PROVIDER=${c.LLM_PROVIDER}`);
+
+  const media = { visionModel: mediaModel(c.VISION_MODEL, d.vision), transcribeModel: mediaModel(c.TRANSCRIBE_MODEL, d.transcribe) };
 
   const adminIds = new Set(
     (c.ADMIN_TELEGRAM_IDS ?? "")
@@ -64,7 +80,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       .map((s) => Number(s.trim()))
       .filter((n) => Number.isSafeInteger(n) && n > 0),
   );
-  return { ...c, adminIds, llm: { baseURL, apiKey, model, provider: c.LLM_PROVIDER } };
+  return { ...c, adminIds, llm: { baseURL, apiKey, model, provider: c.LLM_PROVIDER }, media };
 }
 
 export function config(): Config {

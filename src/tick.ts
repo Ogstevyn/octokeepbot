@@ -54,6 +54,9 @@ export async function runTick(d: Deps, opts: { now?: Date; userId?: number; limi
     }
   }
 
-  if (!opts.userId) await d.repo.pruneSeenUpdates(new Date(now.getTime() - 3 * 86_400_000));
+  if (!opts.userId) {
+    await d.repo.pruneSeenUpdates(new Date(now.getTime() - 3 * 86_400_000));
+    await d.repo.pruneMediaParts(new Date(now.getTime() - 3_600_000));
+  }
   return result;
 }

@@ -51,3 +51,13 @@ CREATE TABLE IF NOT EXISTS seen_updates (
   update_id BIGINT PRIMARY KEY,
   seen_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Text read from album photos while the rest of the album arrives.
+CREATE TABLE IF NOT EXISTS media_parts (
+  user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  group_id   TEXT NOT NULL,
+  message_id BIGINT NOT NULL,
+  part_enc   TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, group_id, message_id)
+);

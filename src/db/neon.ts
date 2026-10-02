@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { decryptJson, encryptJson, encrypt, decrypt } from "../crypto.js";
 import type { Item, ItemKind, ItemStatus, MemwalCreds, Pending, User } from "../types.js";
-import type { ItemPatch, NewItem, OutboxEntry, Repo, UserPatch } from "./repo.js";
+import type { ItemPatch, MediaPart, NewItem, OutboxEntry, Repo, UserPatch } from "./repo.js";
 
 type Row = Record<string, unknown>;
 type Sql = ReturnType<typeof neon>;
@@ -166,6 +166,45 @@ export class NeonRepo implements Repo {
 
   async failOutbox(id: number, error: string, nextTry: Date) {
     await this.q("UPDATE memory_outbox SET last_error = $2, next_try = $3 WHERE id = $1", [id, error.slice(0, 500), nextTry]);
+  }
+
+  async addMediaPart(userId: number, groupId: string, messageId: number, now: Date) {
+    await this.q(
+      `INSERT INTO media_parts (user_id, group_id, message_id, updated_at) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, group_id, message_id) DO NOTHING`,
+      [userId, groupId, messageId, now],
+    );
+  }
+
+  async finishMediaPart(userId: number, groupId: string, messageId: number, part: MediaPart, now: Date) {
+    await this.q("UPDATE media_parts SET part_enc = $4, updated_at = $5 WHERE user_id = $1 AND group_id = $2 AND message_id = $3", [
+      userId,
+      groupId,
+      messageId,
+      encryptJson(part, this.keyHex),
+      now,
+    ]);
+  }
+
+  // One statement, so two handlers claiming at once cannot both get the rows:
+  // the second DELETE waits on the first and then finds nothing.
+  async claimMediaGroup(userId: number, groupId: string, quietSince: Date) {
+    const rows = await this.q(
+      `DELETE FROM media_parts WHERE user_id = $1 AND group_id = $2
+         AND NOT EXISTS (
+           SELECT 1 FROM media_parts WHERE user_id = $1 AND group_id = $2 AND (part_enc IS NULL OR updated_at > $3)
+         )
+       RETURNING message_id, part_enc`,
+      [userId, groupId, quietSince],
+    );
+    if (!rows.length) return null;
+    return rows
+      .sort((a, b) => Number(a.message_id) - Number(b.message_id))
+      .map((r) => decryptJson<MediaPart>(r.part_enc as string, this.keyHex));
+  }
+
+  async pruneMediaParts(before: Date) {
+    await this.q("DELETE FROM media_parts WHERE updated_at < $1", [before]);
   }
 
   async markUpdateSeen(updateId: number) {

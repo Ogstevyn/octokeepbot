@@ -78,6 +78,7 @@ Summarise the content so the user does not need to watch or read it.
 - summary: at most 90 words, concrete, keeps the specific numbers, names and steps that matter.
 - actions: 1 to 5 concrete things the user could do because of this content, each starting with a verb, each with effort small (under an hour), medium (a few hours) or large (days).
 - connection: one sentence linking this to something in the user's memory below, only if there is a real link; otherwise null. Never invent facts about the user.
+Text read from screenshots or transcribed from a recording can be rough: summarise the post itself, use comments only when they add something, and ignore leftover app text.
 Format: {"title": string, "summary": string, "actions": [{"text": string, "effort": "small"|"medium"|"large"}], "connection": string|null}`,
   prompt: `What the user already has in memory:
 ${memoriesBlock(memories)}

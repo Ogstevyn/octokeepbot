@@ -1,7 +1,7 @@
-import { Api, Bot, GrammyError } from "grammy";
+import { Api, Bot, GrammyError, type Context } from "grammy";
 import type { InlineKeyboardButton } from "grammy/types";
 import type { Button } from "../types.js";
-import { BlockedError, handleCallback, handleMessage, type Deps, type Out } from "./core.js";
+import { BlockedError, handleCallback, handleMedia, handleMessage, type Deps, type IncomingMedia, type Out } from "./core.js";
 
 const toKeyboard = (rows?: Button[][]) =>
   rows?.length
@@ -57,9 +57,62 @@ export function telegramOut(api: Api, log: Deps["log"]): Out {
   };
 }
 
+// Downloads a file the user sent. The URL contains the bot token, so errors
+// never include it.
+const downloader = (api: Api, token: string, fileId: string) => async () => {
+  const file = await api.getFile(fileId);
+  if (!file.file_path) throw new Error("Telegram returned no file path");
+  const res = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`, { signal: AbortSignal.timeout(60_000) });
+  if (!res.ok) throw new Error(`file download failed with HTTP ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+};
+
+// Maps a Telegram message to the media OctoKeep understands, or null.
+function mediaOf(ctx: Context, token: string): IncomingMedia | null {
+  const msg = ctx.message;
+  if (!msg || !ctx.from || ctx.chat?.type !== "private") return null;
+  const base = {
+    userId: ctx.from.id,
+    chatId: ctx.chat.id,
+    messageId: msg.message_id,
+    firstName: ctx.from.first_name ?? "",
+    caption: msg.caption ?? "",
+    groupId: msg.media_group_id,
+  };
+  const make = (kind: IncomingMedia["kind"], fileId: string, mime: string, fileSize?: number): IncomingMedia => ({
+    ...base,
+    kind,
+    mime,
+    fileSize,
+    download: downloader(ctx.api, token, fileId),
+  });
+
+  if (msg.photo?.length) {
+    const p = msg.photo.at(-1)!; // largest size
+    return make("image", p.file_id, "image/jpeg", p.file_size);
+  }
+  if (msg.voice) return make("voice", msg.voice.file_id, msg.voice.mime_type ?? "audio/ogg", msg.voice.file_size);
+  if (msg.video_note) return make("voice", msg.video_note.file_id, "video/mp4", msg.video_note.file_size);
+  if (msg.video) return make("recording", msg.video.file_id, msg.video.mime_type ?? "video/mp4", msg.video.file_size);
+  if (msg.audio) return make("recording", msg.audio.file_id, msg.audio.mime_type ?? "audio/mpeg", msg.audio.file_size);
+  const doc = msg.document;
+  if (doc?.mime_type) {
+    if (/^image\/(jpeg|png|webp)$/.test(doc.mime_type)) return make("image", doc.file_id, doc.mime_type, doc.file_size);
+    if (/^(video|audio)\//.test(doc.mime_type)) return make("recording", doc.file_id, doc.mime_type, doc.file_size);
+  }
+  return null;
+}
+
 export function createBot(token: string, deps: (api: Api) => Deps): Bot {
   const bot = new Bot(token);
   const d = deps(bot.api);
+
+  // Screenshots, screen recordings, and voice messages.
+  bot.on(["message:photo", "message:video", "message:video_note", "message:voice", "message:audio", "message:document"], async (ctx, next) => {
+    const media = mediaOf(ctx, token);
+    if (!media) return next();
+    await handleMedia(d, media);
+  });
 
   bot.on(["message:text", "message:caption"], async (ctx) => {
     // OctoKeep keeps personal memory, so it only works in private chats.

@@ -80,6 +80,10 @@ export const HELP = `<b>How to use OctoKeep</b>
 
 Send a link to a video, article or post. I summarise it, ask what you plan to do, and check back after the gap you pick.
 
+For Instagram, send a screenshot of the post (tap "more" first so the whole caption shows) or a screen recording of the Reel. Several screenshots sent together become one summary.
+
+You can also send voice messages instead of typing.
+
 Tell me something you want to do and when, like "build an app on Thursday, remind me". I ask a few short questions and send you a plan at that time.
 
 Ask about your memory: "what did I save about Rust?" or "what have I been ignoring?"

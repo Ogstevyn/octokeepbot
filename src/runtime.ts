@@ -4,6 +4,7 @@ import { MemoryRepo } from "./db/memory.js";
 import { NeonRepo } from "./db/neon.js";
 import type { Repo } from "./db/repo.js";
 import { createLlm } from "./llm/llm.js";
+import { createMedia } from "./media/media.js";
 import { memwalFor } from "./memory/client.js";
 import { fetchContent } from "./sources/index.js";
 import type { Deps } from "./bot/core.js";
@@ -29,6 +30,8 @@ export function buildDeps(api: Api): Deps {
     fetchContent,
     now: () => new Date(),
     adminIds: c.adminIds,
+    media: createMedia({ baseURL: c.llm.baseURL, apiKey: c.llm.apiKey, ...c.media }),
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     envCreds: c.MEMWAL_PRIVATE_KEY && c.MEMWAL_ACCOUNT_ID ? { key: c.MEMWAL_PRIVATE_KEY, accountId: c.MEMWAL_ACCOUNT_ID } : null,
     log,
   };
