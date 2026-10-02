@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OctoKeep: stop bookmarking, start doing</title>
+  <meta name="description" content="OctoKeep is a Telegram bot that reads what you save, remembers it with Walrus Memory, and checks back until you act on it.">
+  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="dark">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="OctoKeep">
+  <meta property="og:title" content="OctoKeep: stop bookmarking, start doing">
+  <meta property="og:description" content="Send a link. Get the summary. Get reminded until you act on it.">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The OctoKeep mascot next to the line: stop bookmarking, start doing.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="OctoKeep: stop bookmarking, start doing">
+  <meta name="twitter:description" content="Send a link. Get the summary. Get reminded until you act on it.">
+  <!-- site-url:start -->
+  <!-- Set siteUrl in site.config.json and rerun scripts/sync-site.mjs to make these absolute and add canonical and og:url. -->
+  <meta property="og:image" content="images/og.png">
+  <meta name="twitter:image" content="images/og.png">
+  <!-- site-url:end -->
+
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" href="images/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preload" href="fonts/geist-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/main.css">
+  <script src="scripts/main.js" defer></script>
+</head>
+<body>
+  <svg class="sprite" width="0" height="0" aria-hidden="true" focusable="false">
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6m0-6L10 14M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7.8" r="1.1" fill="currentColor"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5 21 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4h10l4 4v12H5zM15 4v4h4M8.5 12h7M8.5 15.5h7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="M8.5 7 3.5 12l5 5m7-10 5 5-5 5M13.5 4.5l-3 15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-memory" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7.5" ry="2.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 6v6c0 1.6 3.4 2.8 7.5 2.8s7.5-1.2 7.5-2.8V6M4.5 12v6c0 1.6 3.4 2.8 7.5 2.8s7.5-1.2 7.5-2.8v-6" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </svg>
+
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap wrap--wide site-header__inner">
+      <a class="wordmark" href="./" aria-label="OctoKeep home">
+        <img src="images/logo-96.webp" width="48" height="48" alt="">
+        <span class="wordmark__text" aria-hidden="true"><span>octo</span><span>keep</span></span>
+      </a>
+      <div class="site-header__actions">
+        <span class="handle" data-text="botHandle">@OctoKeep_bot</span>
+        <a class="btn btn--outline btn--sm" href="https://t.me/OctoKeep_bot" data-link="bot">
+          <span>Open<span class="btn__long"> in Telegram</span></span>
+          <svg aria-hidden="true"><use href="#i-external"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="wrap">
+
+      <section class="hero" aria-labelledby="hero-title">
+        <div>
+          <h1 id="hero-title">Stop bookmarking.<br>Start doing.</h1>
+          <p>OctoKeep reads what you save, remembers it, and checks back until you act on it.</p>
+        </div>
+        <img class="hero__mascot" src="images/mascot-520.webp" width="220" height="220" alt="The OctoKeep octopus wearing a headset and holding a laptop, with a speech bubble.">
+      </section>
+
+      <p class="notice">
+        <svg aria-hidden="true"><use href="#i-info"/></svg>
+        <span>OctoKeep lives in Telegram. Before you connect it, you need a free Walrus Memory account (<a href="#setup">see setup below</a>). It holds your memory, and you can revoke OctoKeep's access at any time.</span>
+      </p>
+
+      <a class="card card--primary" href="https://t.me/OctoKeep_bot" data-link="bot">
+        <svg class="card__icon" aria-hidden="true"><use href="#i-send"/></svg>
+        <span class="card__body">
+          <span class="card__title">Open OctoKeep in Telegram</span>
+          <span class="card__text">Start a chat with <span data-text="botHandle">@OctoKeep_bot</span></span>
+        </span>
+        <svg class="card__arrow" aria-hidden="true"><use href="#i-arrow"/></svg>
+      </a>
+
+      <section aria-labelledby="get-started">
+        <div class="section-label">
+          <h2 id="get-started">Get started</h2>
+          <p>Everything you need to set up and use OctoKeep.</p>
+        </div>
+        <div class="resources">
+          <a class="card" href="#setup">
+            <svg class="card__icon" aria-hidden="true"><use href="#i-book"/></svg>
+            <span class="card__body">
+              <span class="card__title">Setup guide</span>
+              <span class="card__text">Six steps from zero to your first reminder</span>
+            </span>
+            <svg class="card__arrow" aria-hidden="true"><use href="#i-arrow"/></svg>
+          </a>
+          <a class="card" href="https://github.com/Ogstevyn/octobot" data-link="repo">
+            <svg class="card__icon" aria-hidden="true"><use href="#i-code"/></svg>
+            <span class="card__body">
+              <span class="card__title">GitHub</span>
+              <span class="card__text">Read the source and run it yourself</span>
+            </span>
+            <svg class="card__arrow" aria-hidden="true"><use href="#i-arrow"/></svg>
+          </a>
+          <a class="card" href="https://memory.walrus.xyz" data-link="memory">
+            <svg class="card__icon" aria-hidden="true"><use href="#i-memory"/></svg>
+            <span class="card__body">
+              <span class="card__title">Walrus Memory</span>
+              <span class="card__text">Create the account that holds your memory</span>
+            </span>
+            <svg class="card__arrow" aria-hidden="true"><use href="#i-arrow"/></svg>
+          </a>
+        </div>
+      </section>
+
+      <section class="panel" id="what" aria-labelledby="what-title">
+        <div class="panel__head">
+          <div>
+            <h2 id="what-title">What OctoKeep does</h2>
+            <p>Two jobs, both remembered.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th scope="col">Feature</th><th scope="col">You send</th><th scope="col">OctoKeep does</th><th scope="col">Comes back</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="name">Saved posts</span><span class="badge">Default 2 days</span></td>
+                <td data-label="You send">A link to a post, video or article</td>
+                <td data-label="OctoKeep does">Sends a short summary and the actions in it, then asks what you plan to do</td>
+                <td data-label="Comes back">After the gap you choose, and asks if you did it</td>
+              </tr>
+              <tr>
+                <td><span class="name">Tasks</span><span class="badge">Up to 3 questions</span></td>
+                <td data-label="You send">"Build an app Thursday, remind me"</td>
+                <td data-label="OctoKeep does">Confirms the date and asks a few short questions about the task</td>
+                <td data-label="Comes back">At the time you set, with an organised plan</td>
+              </tr>
+              <tr>
+                <td><span class="name">Outcomes</span><span class="badge">Learns from you</span></td>
+                <td data-label="You send">Done, Snooze or Drop</td>
+                <td data-label="OctoKeep does">Remembers what you finished and what you skipped</td>
+                <td data-label="Comes back">Uses it to shape the next reminder</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="how" aria-labelledby="how-title">
+        <div class="panel__head">
+          <div>
+            <h2 id="how-title">How to use it</h2>
+            <p>Two short conversations show the whole thing.</p>
+          </div>
+          <div class="panel__controls">
+            <div class="segmented" role="tablist" aria-label="Example conversation">
+              <button class="tab" type="button" role="tab" id="tab-post" aria-controls="panel-post" aria-selected="true">Saved post</button>
+              <button class="tab" type="button" role="tab" id="tab-task" aria-controls="panel-task" aria-selected="false" tabindex="-1">Task</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="code" role="tabpanel" id="panel-post" aria-labelledby="tab-post" tabindex="0">
+          <button class="icon-btn" type="button" data-copy-target="chat-post" aria-label="Copy the saved post example">
+            <svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg>
+            <svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg>
+          </button>
+<pre class="chat" id="chat-post"><span class="who who--you">you</span><span>youtube.com/watch?v=…</span>
+<span class="who who--bot">octokeep</span><span>Getting your first cloud certification (38 min)
+
+Summary: start with the entry-level exam. Study 45 minutes a day for four weeks with the free official course, and book the exam on day one so the date is real.
+
+Actions
+1. Book the exam for four weeks from now <span class="tok-c">(small)</span>
+2. Finish module 1 of the free course <span class="tok-c">(medium)</span>
+3. Take one practice test by week three <span class="tok-c">(medium)</span>
+
+Do you want to act on this?
+<span class="btns">[ Yes ]  [ Maybe later ]  [ No ]</span></span>
+<span class="who who--you">you</span><span>Yes</span>
+<span class="who who--bot">octokeep</span><span>When should I check back?
+<span class="btns">[ 1 day ]  [ 2 days ]  [ 3 days ]  [ 1 week ]</span></span>
+<span class="who who--you">you</span><span>2 days</span>
+<span class="who who--bot">octokeep</span><span>Saved. I'll check in two days from now.</span>
+<span class="gap">// two days later</span>
+<span class="who who--bot">octokeep</span><span>You saved "Getting your first cloud certification" and said you'd book the exam. Did you?
+<span class="btns">[ Done ]  [ Snooze ]  [ Drop ]</span></span></pre>
+        </div>
+
+        <div class="code" role="tabpanel" id="panel-task" aria-labelledby="tab-task" tabindex="0" hidden>
+          <button class="icon-btn" type="button" data-copy-target="chat-task" aria-label="Copy the task example">
+            <svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg>
+            <svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg>
+          </button>
+<pre class="chat" id="chat-task"><span class="who who--you">you</span><span>I want to build an app on Thursday, remind me</span>
+<span class="who who--bot">octokeep</span><span>Thursday 8 Oct. What time?
+<span class="btns">[ Morning ]  [ Afternoon ]  [ Evening ]</span></span>
+<span class="who who--you">you</span><span>9am</span>
+<span class="who who--bot">octokeep</span><span>What is the app?</span>
+<span class="who who--you">you</span><span>A budget tracker for me and my flatmates</span>
+<span class="who who--bot">octokeep</span><span>Which stack or tools?</span>
+<span class="who who--you">you</span><span>Next.js and Supabase</span>
+<span class="who who--bot">octokeep</span><span>What is the first step?</span>
+<span class="who who--you">you</span><span>skip</span>
+<span class="who who--bot">octokeep</span><span>Got it. Thursday 8 Oct, 9:00.</span>
+<span class="gap">// Thursday, 9:00</span>
+<span class="who who--bot">octokeep</span><span>Today: build the budget tracker
+
+Details
+- App: budget tracker for you and your flatmates
+- Stack: Next.js, Supabase
+
+Plan
+1. Create the Next.js project and push it to GitHub
+2. Set up Supabase with an expenses table
+3. Build the add-expense form
+4. Show a running total per person
+
+Related: "Supabase auth in 10 minutes", saved 3 Oct
+<span class="btns">[ Done ]  [ Snooze 1h ]  [ Reschedule ]</span></span></pre>
+        </div>
+      </section>
+
+      <section class="panel" id="commands" aria-labelledby="commands-title">
+        <div class="panel__head">
+          <div>
+            <h2 id="commands-title">Commands</h2>
+            <p>You can also just talk to it. These are shortcuts.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table data-table--middle">
+            <thead>
+              <tr><th scope="col">Command</th><th scope="col">What it does</th><th scope="col" class="col-action"><span class="visually-hidden">Copy</span></th></tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="mono name">/start</span></td><td data-label="What it does">Set up and choose your timezone</td><td class="col-action"><button class="icon-btn" type="button" data-copy="/start" aria-label="Copy /start"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg></button></td></tr>
+              <tr><td><span class="mono name">/connect</span></td><td data-label="What it does">Link your Walrus Memory account</td><td class="col-action"><button class="icon-btn" type="button" data-copy="/connect" aria-label="Copy /connect"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg></button></td></tr>
+              <tr><td><span class="mono name">/list</span></td><td data-label="What it does">Your saved posts and open items</td><td class="col-action"><button class="icon-btn" type="button" data-copy="/list" aria-label="Copy /list"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg></button></td></tr>
+              <tr><td><span class="mono name">/tasks</span></td><td data-label="What it does">Upcoming tasks and their times</td><td class="col-action"><button class="icon-btn" type="button" data-copy="/tasks" aria-label="Copy /tasks"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg></button></td></tr>
+              <tr><td><span class="mono name">/ignored</span></td><td data-label="What it does">Things you have not acted on yet</td><td class="col-action"><button class="icon-btn" type="button" data-copy="/ignored" aria-label="Copy /ignored"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg></button></td></tr>
+              <tr><td><span class="mono name">/gap</span></td><td data-label="What it does">Change your default check-back time, for example <span class="inline-code">/gap 3d</span></td><td class="col-action"><button class="icon-btn" type="button" data-copy="/gap" aria-label="Copy /gap"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg></button></td></tr>
+              <tr><td><span class="mono name">/done</span></td><td data-label="What it does">Mark something done</td><td class="col-action"><button class="icon-btn" type="button" data-copy="/done" aria-label="Copy /done"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg></button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="setup" aria-labelledby="setup-title">
+        <div class="panel__head">
+          <div>
+            <h2 id="setup-title">Set up in five minutes</h2>
+            <p>You own your memory. OctoKeep only gets a key you can revoke.</p>
+          </div>
+          <div class="panel__controls">
+            <a class="btn btn--light btn--sm" href="https://t.me/OctoKeep_bot" data-link="bot">Open the bot <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          </div>
+        </div>
+        <ol class="steps">
+          <li class="step">
+            <span class="step__num" aria-hidden="true">1</span>
+            <div>
+              <h3>Create your Walrus Memory account</h3>
+              <p>Open <a href="https://memory.walrus.xyz" data-link="memory">memory.walrus.xyz</a>, sign in, and finish the account setup.</p>
+              <!-- Screenshot slot: <img src="images/setup-1.webp" width="1200" height="750" loading="lazy" alt="The Walrus Memory dashboard after signing in, with the Create a delegate key card at the top."> -->
+            </div>
+          </li>
+          <li class="step">
+            <span class="step__num" aria-hidden="true">2</span>
+            <div>
+              <h3>Create a key for OctoKeep</h3>
+              <p>Under Delegate keys, select Add key and name it <span class="inline-code">OctoKeep</span>. A separate key means you can cut OctoKeep off later without touching anything else.</p>
+              <!-- Screenshot slot: <img src="images/setup-2.webp" width="1200" height="750" loading="lazy" alt="The Delegate keys table with a key named OctoKeep."> -->
+            </div>
+          </li>
+          <li class="step">
+            <span class="step__num" aria-hidden="true">3</span>
+            <div>
+              <h3>Copy two values</h3>
+              <p>From SDK credentials, copy your Account ID and the delegate private key for that key. Treat the private key like a password and do not post it anywhere else.</p>
+              <!-- Screenshot slot: <img src="images/setup-3.webp" width="1200" height="750" loading="lazy" alt="The SDK credentials panel showing where the Account ID and the delegate private key are."> -->
+            </div>
+          </li>
+          <li class="step">
+            <span class="step__num" aria-hidden="true">4</span>
+            <div>
+              <h3>Start the bot</h3>
+              <p>Open <a href="https://t.me/OctoKeep_bot" data-link="bot"><span data-text="botHandle">@OctoKeep_bot</span></a>, send this, and choose your timezone so reminders arrive at the right hour.</p>
+              <div class="code code--tight">
+                <pre><span class="tok-p">/start</span></pre>
+                <button class="icon-btn" type="button" data-copy="/start" aria-label="Copy /start"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg></button>
+              </div>
+            </div>
+          </li>
+          <li class="step">
+            <span class="step__num" aria-hidden="true">5</span>
+            <div>
+              <h3>Connect your memory</h3>
+              <p>Send this, then paste the Account ID and the private key when asked. OctoKeep deletes your message straight away and stores the key encrypted.</p>
+              <div class="code code--tight">
+                <pre><span class="tok-p">/connect</span></pre>
+                <button class="icon-btn" type="button" data-copy="/connect" aria-label="Copy /connect"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg></button>
+              </div>
+            </div>
+          </li>
+          <li class="step">
+            <span class="step__num" aria-hidden="true">6</span>
+            <div>
+              <h3>Send your first link</h3>
+              <p>Paste a link to a video, article or post. For Instagram and TikTok, paste the caption as text, since OctoKeep does not scrape those apps.</p>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section class="panel" id="privacy" aria-labelledby="privacy-title">
+        <div class="panel__head">
+          <div>
+            <h2 id="privacy-title">Your memory, your keys</h2>
+            <p>What is stored, where, and how to switch it off.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th scope="col">Question</th><th scope="col">Answer</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="name">Where your memory lives</span></td>
+                <td data-label="Answer">Encrypted on Walrus, in your own Walrus Memory account. It is not tied to OctoKeep, so it goes wherever your account goes.</td>
+              </tr>
+              <tr>
+                <td><span class="name">What OctoKeep stores</span></td>
+                <td data-label="Answer">Your Telegram ID, timezone and reminder schedule, plus your account ID and delegate key, encrypted.</td>
+              </tr>
+              <tr>
+                <td><span class="name">How to cut it off</span><span class="badge badge--danger">Revocable</span></td>
+                <td data-label="Answer">Delete the OctoKeep key in your Walrus Memory dashboard. OctoKeep can no longer read or write your memory.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="developers" aria-labelledby="dev-title">
+        <div class="panel__head">
+          <div>
+            <h2 id="dev-title">For developers</h2>
+            <p>OctoKeep is open source. Run your own.</p>
+          </div>
+          <div class="panel__controls">
+            <a class="btn btn--outline btn--sm" href="https://github.com/Ogstevyn/octobot" data-link="repo">View on GitHub <svg aria-hidden="true"><use href="#i-external"/></svg></a>
+          </div>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="Package manager">
+          <button class="tab" type="button" role="tab" id="tab-pnpm" aria-controls="panel-pnpm" aria-selected="true">pnpm</button>
+          <button class="tab" type="button" role="tab" id="tab-npm" aria-controls="panel-npm" aria-selected="false" tabindex="-1">npm</button>
+        </div>
+        <div class="code" role="tabpanel" id="panel-pnpm" aria-labelledby="tab-pnpm" tabindex="0">
+          <button class="icon-btn" type="button" data-copy-target="cmd-pnpm" aria-label="Copy the pnpm commands"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg></button>
+<pre id="cmd-pnpm">git clone <span class="tok-s" data-text="repoGit">https://github.com/Ogstevyn/octobot.git</span>
+<span class="tok-k">cd</span> octobot
+pnpm install
+<span class="tok-k">cp</span> .env.example .env   <span class="tok-c"># then fill in your own keys</span>
+pnpm dev</pre>
+        </div>
+        <div class="code" role="tabpanel" id="panel-npm" aria-labelledby="tab-npm" tabindex="0" hidden>
+          <button class="icon-btn" type="button" data-copy-target="cmd-npm" aria-label="Copy the npm commands"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg></button>
+<pre id="cmd-npm">git clone <span class="tok-s" data-text="repoGit">https://github.com/Ogstevyn/octobot.git</span>
+<span class="tok-k">cd</span> octobot
+npm install
+<span class="tok-k">cp</span> .env.example .env   <span class="tok-c"># then fill in your own keys</span>
+npm run dev</pre>
+        </div>
+
+        <div class="code code--spaced">
+          <button class="icon-btn" type="button" data-copy-target="code-memwal" aria-label="Copy the Walrus Memory setup code"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg></button>
+<pre id="code-memwal"><span class="tok-k">import</span> { MemWal } <span class="tok-k">from</span> <span class="tok-s">"@mysten-incubation/memwal"</span>
+
+<span class="tok-k">const</span> memory = MemWal.create({
+  <span class="tok-p">key</span>: process.env.MEMWAL_PRIVATE_KEY,
+  <span class="tok-p">accountId</span>: process.env.MEMWAL_ACCOUNT_ID,
+  <span class="tok-p">serverUrl</span>: process.env.MEMWAL_SERVER_URL,
+  <span class="tok-p">namespace</span>: <span class="tok-s">"octokeep"</span>,
+})
+
+<span class="tok-c">// Save what the user committed to, then wait for the write</span>
+<span class="tok-k">const</span> job = <span class="tok-k">await</span> memory.remember(<span class="tok-s">"[SAVE] Cloud cert video | book the exam | due in 2 days"</span>)
+<span class="tok-k">await</span> memory.waitForRememberJob(job.job_id)
+
+<span class="tok-c">// Later, recall it to word the reminder</span>
+<span class="tok-k">const</span> { results } = <span class="tok-k">await</span> memory.recall({ <span class="tok-p">query</span>: <span class="tok-s">"what did I plan to do this week"</span> })</pre>
+        </div>
+        <p class="callout">Never put a private key in client code or in this site. Keys belong in server environment variables only.</p>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap site-footer__inner">
+      <p>OctoKeep is built on <a href="https://memory.walrus.xyz" data-link="memory">Walrus Memory</a>. Hosted on Walrus Sites.</p>
+      <nav aria-label="Footer">
+        <a href="https://t.me/OctoKeep_bot" data-link="bot">Telegram</a>
+        <a href="https://github.com/Ogstevyn/octobot" data-link="repo">GitHub</a>
+        <a href="#setup">Setup guide</a>
+      </nav>
+    </div>
+  </footer>
+
+  <p class="visually-hidden" id="copy-status" aria-live="polite"></p>
+</body>
+</html>

@@ -1,0 +1,70 @@
+{
+  "site_name": "OctoKeep",
+  "metadata": {
+    "description": "A Telegram bot that reads what you save, remembers it with Walrus Memory, and checks back until you act on it.",
+    "project_url": "https://github.com/Ogstevyn/octobot",
+    "creator": "Ogstevyn"
+  },
+  "headers": {
+    "/404.html": {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-cache"
+    },
+    "/apple-touch-icon.png": {
+      "Content-Type": "image/png",
+      "Cache-Control": "max-age=604800"
+    },
+    "/favicon.ico": {
+      "Content-Type": "image/x-icon",
+      "Cache-Control": "max-age=604800"
+    },
+    "/fonts/LICENSE-Geist-Mono.txt": {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "max-age=604800"
+    },
+    "/fonts/LICENSE-Geist.txt": {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "max-age=604800"
+    },
+    "/fonts/geist-latin-wght.woff2": {
+      "Content-Type": "font/woff2",
+      "Cache-Control": "max-age=31536000, immutable"
+    },
+    "/fonts/geist-mono-latin-wght.woff2": {
+      "Content-Type": "font/woff2",
+      "Cache-Control": "max-age=31536000, immutable"
+    },
+    "/images/favicon-32.png": {
+      "Content-Type": "image/png",
+      "Cache-Control": "max-age=604800"
+    },
+    "/images/logo-96.webp": {
+      "Content-Type": "image/webp",
+      "Cache-Control": "max-age=604800"
+    },
+    "/images/mascot-520.webp": {
+      "Content-Type": "image/webp",
+      "Cache-Control": "max-age=604800"
+    },
+    "/images/og.png": {
+      "Content-Type": "image/png",
+      "Cache-Control": "max-age=604800"
+    },
+    "/index.html": {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-cache"
+    },
+    "/scripts/main.js": {
+      "Content-Type": "application/javascript; charset=utf-8",
+      "Cache-Control": "max-age=3600"
+    },
+    "/styles/main.css": {
+      "Content-Type": "text/css; charset=utf-8",
+      "Cache-Control": "max-age=3600"
+    },
+    "/styles/tokens.css": {
+      "Content-Type": "text/css; charset=utf-8",
+      "Cache-Control": "max-age=3600"
+    }
+  }
+}

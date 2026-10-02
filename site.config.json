@@ -1,0 +1,15 @@
+{
+  "siteName": "OctoKeep",
+  "description": "A Telegram bot that reads what you save, remembers it with Walrus Memory, and checks back until you act on it.",
+  "creator": "Ogstevyn",
+  "siteUrl": "",
+  "links": {
+    "bot": "https://t.me/OctoKeep_bot",
+    "repo": "https://github.com/Ogstevyn/octobot",
+    "memory": "https://memory.walrus.xyz"
+  },
+  "text": {
+    "botHandle": "@OctoKeep_bot",
+    "repoGit": "https://github.com/Ogstevyn/octobot.git"
+  }
+}
