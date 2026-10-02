@@ -1,0 +1,41 @@
+{
+  "name": "octokeep",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "OctoKeep: a Telegram bot that summarises what you save, remembers it with Walrus Memory, and checks back until you act on it.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch scripts/dev.ts",
+    "start:polling": "tsx scripts/dev.ts",
+    "migrate": "tsx scripts/migrate.ts",
+    "spike": "tsx scripts/spike.ts",
+    "set-webhook": "tsx scripts/set-webhook.ts",
+    "tick": "tsx scripts/tick.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm test && node scripts/sync-site.mjs --check"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.62",
+    "@mozilla/readability": "^0.6.0",
+    "@mysten-incubation/memwal": "^0.1.8",
+    "@neondatabase/serverless": "^1.2.0",
+    "@vercel/functions": "^3.9.9",
+    "ai": "^7.0.127",
+    "grammy": "^1.46.0",
+    "linkedom": "^0.18.13",
+    "luxon": "^3.7.2",
+    "youtube-transcript-plus": "^2.0.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.6",
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.3"
+  }
+}
