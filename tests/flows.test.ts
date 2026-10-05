@@ -382,3 +382,30 @@ describe("memory questions and commands", () => {
     expect(t.repo.items.size).toBe(0);
   });
 });
+
+describe("memory count", () => {
+  it("counts memories that reached Walrus Memory and shows them in /memory", async () => {
+    const t = setup({ now: START, llm: { summary: summaryFake } });
+    await onboard(t);
+    await t.say("https://example.com/a");
+    await t.tap("i:1:y");
+    await t.tap("g:1:2");
+    const saved = await t.repo.memoryCount(1);
+    expect(saved).toBe((await t.mem.all()).length);
+    expect(saved).toBeGreaterThan(0);
+
+    t.mem.failWrites = true;
+    await t.say("https://example.com/b");
+    await t.tap("i:2:y");
+    await t.tap("g:2:2");
+    expect(await t.repo.memoryCount(1)).toBe(saved); // queued, not counted yet
+
+    t.mem.failWrites = false;
+    await runTick(t.deps, { now: later(START, 1) });
+    expect(await t.repo.memoryCount(1)).toBe((await t.mem.all()).length);
+
+    await t.say("/memory");
+    expect(t.out.last().html).toContain(`${await t.repo.memoryCount(1)} memories stored`);
+    expect((await t.repo.usageStats())[0]).toMatchObject({ userId: 1, saves: 2 });
+  });
+});

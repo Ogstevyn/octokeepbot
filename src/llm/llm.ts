@@ -11,6 +11,10 @@ export interface Llm {
 
 export class LlmError extends Error {}
 
+// Reasoning models such as Qwen 3 can put their thinking in <think> tags
+// before the answer. The braces inside it would confuse extractJson.
+export const stripThinking = (s: string) => s.replace(/<think>[\s\S]*?(<\/think>|$)/gi, "").trim();
+
 // Models wrap JSON in prose or code fences often enough that we extract the
 // first balanced object instead of trusting the raw reply.
 export function extractJson(raw: string): unknown {
@@ -41,8 +45,8 @@ export function createLlm(opts: { baseURL: string; apiKey: string; model: string
   const model = provider(opts.model);
 
   const call = async (system: string, prompt: string, temperature: number) => {
-    const res = await generateText({ model, system, prompt, temperature, maxOutputTokens: 1200, maxRetries: 2, abortSignal: AbortSignal.timeout(40_000) });
-    return res.text;
+    const res = await generateText({ model, system, prompt, temperature, maxOutputTokens: 2400, maxRetries: 2, abortSignal: AbortSignal.timeout(40_000) });
+    return stripThinking(res.text);
   };
 
   return {

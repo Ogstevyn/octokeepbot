@@ -16,7 +16,10 @@
     "tick": "tsx scripts/tick.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "check": "npm run typecheck && npm test && node scripts/sync-site.mjs --check"
+    "check": "npm run typecheck && npm test && node scripts/sync-site.mjs --check",
+    "stats": "tsx scripts/stats.ts",
+    "eval": "tsx scripts/eval.ts",
+    "repro": "tsx scripts/repro-memwal.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.62",

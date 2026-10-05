@@ -13,6 +13,7 @@ export interface MemwalLike {
   waitForRememberJob(jobId: string, opts?: { timeoutMs?: number }): Promise<unknown>;
   recall(params: { query: string; limit?: number; maxDistance?: number; namespace?: string }): Promise<{ results: { text: string; distance: number; created_at?: string }[] }>;
   analyze(text: string, namespaceOrOptions?: string | { namespace?: string; occurredAt?: string | Date }): Promise<{ fact_count: number }>;
+  listNamespaces(options?: { cursor?: string }): Promise<{ namespaces: { name: string; memory_count: number }[]; has_more: boolean; next_cursor?: string | null }>;
 }
 
 export interface Memory {
@@ -23,6 +24,9 @@ export interface Memory {
   learn(text: string, occurredAt: Date): Promise<number>;
   // Throws if the credentials cannot read this account.
   verify(): Promise<void>;
+  // How many memories the account holds in OctoKeep's namespace, as the
+  // relayer counts them.
+  count(): Promise<number>;
 }
 
 export class MemoryAuthError extends Error {}
@@ -54,6 +58,18 @@ export function wrapMemwal(client: MemwalLike, namespace: string): Memory {
         return res.results.map((r) => ({ text: r.text, distance: r.distance, createdAt: r.created_at }));
       }),
     learn: (text, occurredAt) => guard(async () => (await client.analyze(text, { namespace, occurredAt })).fact_count),
+    count: () =>
+      guard(async () => {
+        let cursor: string | undefined;
+        for (let page = 0; page < 20; page++) {
+          const res = await client.listNamespaces({ cursor });
+          const hit = res.namespaces.find((n) => n.name === namespace);
+          if (hit) return hit.memory_count;
+          if (!res.has_more || !res.next_cursor) break;
+          cursor = res.next_cursor;
+        }
+        return 0;
+      }),
     verify: () =>
       guard(async () => {
         await client.recall({ query: "OctoKeep connection check", limit: 1, namespace });

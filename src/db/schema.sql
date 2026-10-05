@@ -52,6 +52,10 @@ CREATE TABLE IF NOT EXISTS seen_updates (
   seen_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Count of memories written to each user's Walrus Memory, for /memory and
+-- npm run stats. Added after launch, so it is added rather than declared.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS memory_count INTEGER NOT NULL DEFAULT 0;
+
 -- Text read from album photos while the rest of the album arrives.
 CREATE TABLE IF NOT EXISTS media_parts (
   user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

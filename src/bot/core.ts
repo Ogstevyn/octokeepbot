@@ -141,6 +141,7 @@ export async function remember(d: Deps, u: User, text: string) {
   try {
     await d.memoryFor(u.creds).remember(text);
     await d.repo.deleteOutbox(id);
+    await d.repo.addMemoryCount(u.id, 1);
   } catch (e) {
     d.log("memory write failed, queued for retry", String((e as Error).message ?? e));
     await d.repo.failOutbox(id, String((e as Error).message ?? e), new Date(d.now().getTime() + 60_000));
@@ -341,6 +342,27 @@ async function command(d: Deps, u: User, m: Incoming, cmd: string, arg: string) 
       const tasks = items.filter(isTask).map((i) => describeItem(i, zone, now));
       const parts = [saves.length ? `<b>Saved posts</b>\n${saves.join("\n")}` : "", tasks.length ? `<b>Tasks</b>\n${tasks.join("\n")}` : ""].filter(Boolean);
       return void (await d.out.send(u.chatId, clip(`${parts.join("\n\n")}\n\nMark one done with /done and its number.`)));
+    }
+    case "memory": {
+      const [local, open, quiet] = await Promise.all([d.repo.memoryCount(u.id), d.repo.listItems(u.id, ["open"]), d.repo.listItems(u.id, ["quiet"])]);
+      // Ask Walrus Memory itself; fall back to OctoKeep's own count.
+      let count = local;
+      if (u.creds) {
+        try {
+          count = await d.memoryFor(u.creds).count();
+        } catch (e) {
+          d.log("memory count failed", String((e as Error).message ?? e));
+        }
+      }
+      const lines = [
+        `<b>Your memory</b>`,
+        `${count} memor${count === 1 ? "y" : "ies"} stored in your Walrus Memory account (namespace octokeep).`,
+        `${open.length} open item${open.length === 1 ? "" : "s"}, ${quiet.length} gone quiet.`,
+        u.creds ? `Account ${esc(u.creds.accountId.slice(0, 10))}…${esc(u.creds.accountId.slice(-4))}` : "No account connected. Send /connect.",
+        "",
+        'Ask me anything about it, like "what did I save about Rust?"',
+      ];
+      return void (await d.out.send(u.chatId, lines.join("\n")));
     }
     case "tasks": {
       const tasks = await d.repo.listItems(u.id, ["open"], "task");
@@ -727,7 +749,8 @@ async function routeText(d: Deps, u: User, text: string) {
   // extractor, which stores each fact as its own memory.
   if (route.hasPersonalFacts && u.creds) {
     try {
-      await d.memoryFor(u.creds).learn(text, d.now());
+      const facts = await d.memoryFor(u.creds).learn(text, d.now());
+      if (facts > 0) await d.repo.addMemoryCount(u.id, facts);
     } catch (e) {
       d.log("learn failed", String((e as Error).message ?? e));
     }

@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { decryptJson, encryptJson, encrypt, decrypt } from "../crypto.js";
 import type { Item, ItemKind, ItemStatus, MemwalCreds, Pending, User } from "../types.js";
-import type { ItemPatch, MediaPart, NewItem, OutboxEntry, Repo, UserPatch } from "./repo.js";
+import type { ItemPatch, MediaPart, NewItem, OutboxEntry, Repo, UsageRow, UserPatch } from "./repo.js";
 
 type Row = Record<string, unknown>;
 type Sql = ReturnType<typeof neon>;
@@ -205,6 +205,34 @@ export class NeonRepo implements Repo {
 
   async pruneMediaParts(before: Date) {
     await this.q("DELETE FROM media_parts WHERE updated_at < $1", [before]);
+  }
+
+  async addMemoryCount(userId: number, n: number) {
+    await this.q("UPDATE users SET memory_count = memory_count + $2 WHERE id = $1", [userId, n]);
+  }
+
+  async memoryCount(userId: number) {
+    const rows = await this.q("SELECT memory_count FROM users WHERE id = $1", [userId]);
+    return Number(rows[0]?.memory_count ?? 0);
+  }
+
+  async usageStats(): Promise<UsageRow[]> {
+    const rows = await this.q(
+      `SELECT u.id, u.memory_count,
+              COUNT(i.id) FILTER (WHERE i.kind = 'save' AND i.status <> 'draft') AS saves,
+              COUNT(i.id) FILTER (WHERE i.kind = 'task' AND i.status <> 'draft') AS tasks,
+              COUNT(i.id) FILTER (WHERE i.status IN ('done', 'dropped')) AS resolved
+       FROM users u LEFT JOIN items i ON i.user_id = u.id
+       GROUP BY u.id, u.memory_count
+       ORDER BY u.memory_count DESC`,
+    );
+    return rows.map((r) => ({
+      userId: Number(r.id),
+      memories: Number(r.memory_count),
+      saves: Number(r.saves),
+      tasks: Number(r.tasks),
+      resolved: Number(r.resolved),
+    }));
   }
 
   async markUpdateSeen(updateId: number) {

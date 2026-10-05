@@ -26,6 +26,14 @@ export interface MediaPart {
   text: string;
 }
 
+export interface UsageRow {
+  userId: number;
+  memories: number;
+  saves: number;
+  tasks: number;
+  resolved: number;
+}
+
 export interface Repo {
   getUser(id: number): Promise<User | null>;
   ensureUser(id: number, chatId: number, firstName: string): Promise<User>;
@@ -51,6 +59,11 @@ export interface Repo {
   finishMediaPart(userId: number, groupId: string, messageId: number, part: MediaPart, now: Date): Promise<void>;
   claimMediaGroup(userId: number, groupId: string, quietSince: Date): Promise<MediaPart[] | null>;
   pruneMediaParts(before: Date): Promise<void>;
+
+  // How many memories OctoKeep has written to each user's Walrus Memory.
+  addMemoryCount(userId: number, n: number): Promise<void>;
+  memoryCount(userId: number): Promise<number>;
+  usageStats(): Promise<UsageRow[]>;
 
   markUpdateSeen(updateId: number): Promise<boolean>;
   pruneSeenUpdates(before: Date): Promise<void>;

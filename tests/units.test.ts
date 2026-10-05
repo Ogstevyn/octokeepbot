@@ -164,3 +164,32 @@ describe("config", () => {
     expect([...c.adminIds]).toEqual([12, 34]);
   });
 });
+
+describe("config safety", () => {
+  const base = { TELEGRAM_BOT_TOKEN: "123456:abcdefghijklmnopqrstuvwxyz", DATABASE_URL: "memory", APP_ENCRYPTION_KEY: "a".repeat(64), LLM_API_KEY: "k" };
+  it("refuses an API key pasted into LLM_MODEL without echoing it", () => {
+    const leaked = "gsk_" + "Z".repeat(48);
+    let message = "";
+    try {
+      loadConfig({ ...base, LLM_MODEL: leaked });
+    } catch (e) {
+      message = String(e);
+    }
+    expect(message).toContain("LLM_MODEL looks like an API key");
+    expect(message).not.toContain(leaked);
+  });
+  it("accepts real model names", () => {
+    for (const m of ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "meta-llama/llama-4-scout-17b-16e-instruct", "qwen/qwen3-32b"]) {
+      expect(loadConfig({ ...base, LLM_MODEL: m }).llm.model).toBe(m);
+    }
+  });
+});
+
+describe("reasoning output", () => {
+  it("drops <think> blocks before reading JSON", async () => {
+    const { stripThinking } = await import("../src/llm/llm.js");
+    const raw = '<think>The user wants {"a": 0}? No.</think>\n{"a": 1}';
+    expect(extractJson(stripThinking(raw))).toEqual({ a: 1 });
+    expect(stripThinking("<think>unfinished")).toBe("");
+  });
+});

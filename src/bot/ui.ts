@@ -92,6 +92,7 @@ Ask about your memory: "what did I save about Rust?" or "what have I been ignori
 /list  your saved posts and open items
 /tasks  upcoming tasks
 /ignored  things you have not acted on
+/memory  how many memories are stored
 /gap  change your default check-back time
 /done 12  mark item 12 done
 /timezone  change your timezone

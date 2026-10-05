@@ -79,7 +79,7 @@ export class FakeMemory {
       const fail = async () => {
         throw new MemoryAuthError("401 unauthorized");
       };
-      return { remember: fail, recall: fail, learn: fail, verify: fail };
+      return { remember: fail, recall: fail, learn: fail, verify: fail, count: fail };
     }
     let mock = this.mocks.get(creds.accountId);
     if (!mock) {
@@ -122,7 +122,7 @@ export class FakeMedia implements Media {
 
 export function setup(opts: { now?: Date; llm?: Record<string, Handler>; fetch?: (url: string) => Promise<FetchResult>; media?: Media } = {}) {
   let now = opts.now ?? new Date("2026-10-02T10:00:00Z"); // a Friday
-  const repo = new MemoryRepo();
+  const repo = new MemoryRepo(() => now);
   const out = new FakeOut();
   const mem = new FakeMemory();
   const llm = new FakeLlm(opts.llm ?? {});

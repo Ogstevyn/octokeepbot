@@ -47,6 +47,7 @@ export async function runTick(d: Deps, opts: { now?: Date; userId?: number; limi
     try {
       await d.memoryFor(user.creds).remember(entry.text);
       await d.repo.deleteOutbox(entry.id);
+      await d.repo.addMemoryCount(user.id, 1);
       result.memoryRetried++;
     } catch (e) {
       result.memoryFailed++;

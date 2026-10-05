@@ -1,5 +1,5 @@
 import type { Item, ItemKind, ItemStatus, User } from "../types.js";
-import type { ItemPatch, MediaPart, NewItem, OutboxEntry, Repo, UserPatch } from "./repo.js";
+import type { ItemPatch, MediaPart, NewItem, OutboxEntry, Repo, UsageRow, UserPatch } from "./repo.js";
 
 // In-process implementation used by tests and by `DATABASE_URL=memory` for
 // trying the bot locally without Postgres. Data is lost on restart.
@@ -8,9 +8,14 @@ export class MemoryRepo implements Repo {
   items = new Map<number, Item>();
   outbox = new Map<number, OutboxEntry & { nextTry: Date }>();
   seen = new Map<number, Date>();
+  memories = new Map<number, number>();
   parts = new Map<string, { userId: number; groupId: string; messageId: number; part: MediaPart | null; updatedAt: Date }>();
   private seq = 0;
   private outSeq = 0;
+
+  // Tests pass their own clock so "saved 2 days ago" does not depend on the
+  // real date.
+  constructor(private clock: () => Date = () => new Date()) {}
 
   private clone<T>(v: T): T {
     return structuredClone(v);
@@ -51,7 +56,7 @@ export class MemoryRepo implements Repo {
       nextAt: n.nextAt ?? null,
       nudgeCount: 0,
       lastNudgedAt: null,
-      createdAt: new Date(),
+      createdAt: this.clock(),
     };
     this.items.set(item.id, item);
     return this.clone(item);
@@ -137,5 +142,26 @@ export class MemoryRepo implements Repo {
 
   async pruneMediaParts(before: Date) {
     for (const [k, p] of this.parts) if (p.updatedAt < before) this.parts.delete(k);
+  }
+
+  async addMemoryCount(userId: number, n: number) {
+    this.memories.set(userId, (this.memories.get(userId) ?? 0) + n);
+  }
+
+  async memoryCount(userId: number) {
+    return this.memories.get(userId) ?? 0;
+  }
+
+  async usageStats(): Promise<UsageRow[]> {
+    return [...this.users.keys()].map((userId) => {
+      const items = [...this.items.values()].filter((i) => i.userId === userId && i.status !== "draft");
+      return {
+        userId,
+        memories: this.memories.get(userId) ?? 0,
+        saves: items.filter((i) => i.kind === "save").length,
+        tasks: items.filter((i) => i.kind === "task").length,
+        resolved: items.filter((i) => i.status === "done" || i.status === "dropped").length,
+      };
+    });
   }
 }

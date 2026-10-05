@@ -56,6 +56,12 @@ Open the bot in Telegram and send `/start`. Put your own Telegram id in `ADMIN_T
 For a demo without waiting days, call the tick endpoint with a future time, which sends whatever would be due then:
 `/api/cron/tick?secret=<CRON_SECRET>&now=2026-10-08T08:00:00Z&user=<telegram id>`.
 
+## Evidence and reproduction scripts
+
+- `npm run stats` prints, for every user, how many memories their Walrus Memory account holds in the `octokeep` namespace (via `listNamespaces`), with Telegram ids replaced by labels.
+- `npm run eval` runs summaries and message classification against one or more models and writes `docs/EVAL.md`. Set `EVAL_MODELS` to a comma-separated list.
+- `npm run repro` reproduces the SDK issues in `docs/FINDINGS.md`; add `-- --live` to run the relayer check against your own account.
+
 ## Tests
 
 ```bash
@@ -74,4 +80,4 @@ The tests drive full conversations through the bot logic with the SDK's `MemWalM
 
 ## Commands
 
-`/start` `/list` `/tasks` `/ignored` `/gap` `/done <n>` `/timezone` `/connect` `/disconnect` `/help` `/cancel`
+`/start` `/list` `/tasks` `/ignored` `/memory` `/gap` `/done <n>` `/timezone` `/connect` `/disconnect` `/help` `/cancel`

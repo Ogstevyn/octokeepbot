@@ -156,6 +156,7 @@ export const COMMANDS = [
   { command: "list", description: "Saved posts and open items" },
   { command: "tasks", description: "Upcoming tasks" },
   { command: "ignored", description: "Things you have not acted on" },
+  { command: "memory", description: "What OctoKeep has stored for you" },
   { command: "gap", description: "Change the default check-back time" },
   { command: "done", description: "Mark an item done, e.g. /done 12" },
   { command: "timezone", description: "Change your timezone" },

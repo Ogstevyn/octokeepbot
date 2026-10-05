@@ -1,3 +1,5 @@
+import { stripThinking } from "../llm/llm.js";
+
 // Reads screenshots with a vision model and transcribes video and voice with a
 // speech-to-text model. Both use the OpenAI-compatible endpoints that Groq,
 // OpenAI and others serve, with the same base URL and key as the main model.
@@ -21,8 +23,7 @@ Skip app interface text: buttons, like and view counts, navigation, the status b
 End with one line starting "Image:" that says what the picture shows.
 If there is no readable content, reply with the "Image:" line only. Plain text, no commentary.`;
 
-// Reasoning models can wrap their thinking in tags; keep only the answer.
-export const stripThinking = (s: string) => s.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+export { stripThinking };
 
 const toBase64 = (b: Uint8Array) => Buffer.from(b).toString("base64");
 
