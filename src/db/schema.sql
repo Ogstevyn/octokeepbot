@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS items (
   kind            TEXT NOT NULL CHECK (kind IN ('save', 'task')),
   status          TEXT NOT NULL CHECK (status IN ('draft', 'open', 'quiet', 'done', 'dropped')),
   payload_enc     TEXT NOT NULL,
-  gap_days        INTEGER NOT NULL DEFAULT 2,
+  gap_days        DOUBLE PRECISION NOT NULL DEFAULT 2,
   due_at          TIMESTAMPTZ,
   next_at         TIMESTAMPTZ,
   nudge_count     INTEGER NOT NULL DEFAULT 0,
@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS seen_updates (
 -- Count of memories written to each user's Walrus Memory, for /memory and
 -- npm run stats. Added after launch, so it is added rather than declared.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS memory_count INTEGER NOT NULL DEFAULT 0;
+-- Check-back gaps can be minutes or hours, so store fractional days.
+ALTER TABLE items ALTER COLUMN gap_days TYPE DOUBLE PRECISION;
 
 -- Text read from album photos while the rest of the album arrives.
 CREATE TABLE IF NOT EXISTS media_parts (

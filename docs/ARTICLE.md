@@ -32,7 +32,7 @@ With memory, every summary, reminder and plan first recalls related lines. If yo
 
 Writes are slow. On mainnet a `remember` plus wait took about 45 seconds in my test, while recall took under 2. A chat reply cannot wait for that, so writes go into a Postgres outbox, the user gets an answer immediately, and the scheduler retries anything that failed. No save is lost to a relayer hiccup.
 
-Reminders need a clock. A Vercel function runs every 15 minutes, claims due items with a lease so two runs never send the same reminder, and recalls memory to word each one.
+Reminders need a clock. A Vercel function runs every minute, claims due items with a lease so two runs never send the same reminder, and recalls memory to word each one.
 
 I also found a few things in the SDK. The one I'd most want fixed: since 0.1.8 the client derives its idempotency key from the text and a 30-minute window, so re-stating a fact within half an hour (a preference that flips back, a habit logged twice) is silently collapsed onto the earlier write, and a recency-sorted recall then returns the stale value. The mock does not model this, so tests pass while production drops the write. I filed it with a reproduction: [issue link].
 

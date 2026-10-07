@@ -142,6 +142,58 @@ export function tomorrowAt(now: Date, zone: string, time = "09:00"): Date {
   return DateTime.fromJSDate(now).setZone(zone).plus({ days: 1 }).set({ hour: h, minute: m, second: 0, millisecond: 0 }).toJSDate();
 }
 
+export const MINUTE_MS = 60_000;
+export const MAX_CHECK_BACK_DAYS = 60;
+
+// When to check back on a save, from what the user typed:
+// "3" (days), "5 min", "2 hours", "1h 30m", "3 days", "2 weeks", "in 45 minutes",
+// or a clock time like "6pm", "18:30", "tomorrow 9am" (next occurrence, local).
+// Returns null when it cannot be read or is outside 1 minute .. 60 days.
+export function parseCheckBack(input: string, now: Date, zone: string): Date | null {
+  const s = input.trim().toLowerCase().replace(/^(in|after)\s+/, "").replace(/\s+from now$/, "");
+  if (/^\d{1,2}$/.test(s)) return inRange(now, Number(s) * DAY_MS);
+
+  const units: Record<string, number> = { m: MINUTE_MS, h: 3_600_000, d: DAY_MS, w: 7 * DAY_MS };
+  const unit = (u: string) => (u.startsWith("mi") || u === "m" ? "m" : u.startsWith("h") ? "h" : u.startsWith("d") ? "d" : u.startsWith("w") ? "w" : null);
+  const part = /(\d+(?:\.\d+)?|an?|one|half an?)\s*(m|mins?|minutes?|h|hrs?|hours?|d|days?|w|wks?|weeks?)\b/g;
+  const rest = s.replace(part, "").replace(/\b(and|,)\b/g, "").replace(/[,\s]+/g, "");
+  if (rest === "") {
+    let ms = 0;
+    for (const m of s.matchAll(part)) {
+      const n = m[1] === "a" || m[1] === "an" || m[1] === "one" ? 1 : m[1]!.startsWith("half") ? 0.5 : Number(m[1]);
+      ms += n * units[unit(m[2]!)!]!;
+    }
+    if (ms > 0) return inRange(now, ms);
+  }
+
+  const tomorrow = /^tomorrow\b/.test(s);
+  const time = parseTimeOfDay(s.replace(/^(tomorrow|today)\s*(at\s+)?/, "")) ?? (tomorrow && s === "tomorrow" ? "09:00" : null);
+  if (!time) return null;
+  const [h, mi] = time.split(":").map(Number);
+  let at = DateTime.fromJSDate(now).setZone(zone).set({ hour: h, minute: mi, second: 0, millisecond: 0 });
+  if (tomorrow) at = at.plus({ days: 1 });
+  else if (at.toMillis() <= now.getTime()) at = at.plus({ days: 1 });
+  return inRange(now, at.toMillis() - now.getTime());
+}
+
+function inRange(now: Date, ms: number): Date | null {
+  return ms >= MINUTE_MS && ms <= MAX_CHECK_BACK_DAYS * DAY_MS ? new Date(now.getTime() + Math.round(ms)) : null;
+}
+
+// "5 minutes", "2 hours 30 minutes", "3 days" for a short "in ..." note.
+export function formatIn(ms: number): string {
+  const mins = Math.round(ms / MINUTE_MS);
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  if (mins < 60) return plural(Math.max(mins, 1), "minute");
+  if (mins < 24 * 60) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m ? `${plural(h, "hour")} ${plural(m, "minute")}` : plural(h, "hour");
+  }
+  const days = Math.round(mins / (24 * 60));
+  return days % 7 === 0 ? plural(days / 7, "week") : plural(days, "day");
+}
+
 // "3", "3d", "3 days", "1w", "2 weeks" -> days (1..60)
 export function parseGap(input: string): number | null {
   const m = input.trim().toLowerCase().match(/^(\d{1,2})\s*(d|day|days|w|wk|week|weeks)?$/);

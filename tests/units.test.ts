@@ -3,7 +3,7 @@ import { decrypt, encrypt } from "../src/crypto.js";
 import { extractJson } from "../src/llm/llm.js";
 import { afterNudge, outboxDelayMs } from "../src/schedule.js";
 import { extractArticle, findUrl, youtubeId } from "../src/sources/index.js";
-import { calendarContext, formatWhen, parseGap, parseTimeOfDay, resolveZone, toInstant, tomorrowAt } from "../src/time.js";
+import { calendarContext, formatIn, formatWhen, parseCheckBack, parseGap, parseTimeOfDay, resolveZone, toInstant, tomorrowAt } from "../src/time.js";
 import { loadConfig } from "../src/config.js";
 
 const KEY = "0".repeat(63) + "1";
@@ -121,6 +121,47 @@ describe("article extraction", () => {
   });
 });
 
+describe("custom check-back time", () => {
+  const now = new Date("2026-10-02T10:00:00Z"); // 11:00 in Lagos
+  const zone = "Africa/Lagos";
+  const mins = (s: string) => {
+    const at = parseCheckBack(s, now, zone);
+    return at ? (at.getTime() - now.getTime()) / 60_000 : null;
+  };
+
+  it("reads durations", () => {
+    expect(mins("5 min")).toBe(5);
+    expect(mins("5m")).toBe(5);
+    expect(mins("in 45 minutes")).toBe(45);
+    expect(mins("2 hours")).toBe(120);
+    expect(mins("1h 30m")).toBe(90);
+    expect(mins("an hour")).toBe(60);
+    expect(mins("half an hour")).toBe(30);
+    expect(mins("3 days")).toBe(3 * 1440);
+    expect(mins("3")).toBe(3 * 1440);
+    expect(mins("2 weeks")).toBe(14 * 1440);
+  });
+
+  it("reads clock times as the next occurrence, local", () => {
+    expect(parseCheckBack("6pm", now, zone)).toEqual(new Date("2026-10-02T17:00:00Z"));
+    expect(parseCheckBack("9am", now, zone)).toEqual(new Date("2026-10-03T08:00:00Z"));
+    expect(parseCheckBack("tomorrow 9am", now, zone)).toEqual(new Date("2026-10-03T08:00:00Z"));
+    expect(parseCheckBack("tomorrow", now, zone)).toEqual(new Date("2026-10-03T08:00:00Z"));
+    expect(parseCheckBack("at 18:30", now, zone)).toEqual(new Date("2026-10-02T17:30:00Z"));
+  });
+
+  it("rejects nonsense and out-of-range values", () => {
+    for (const s of ["soon", "0 min", "30 seconds", "61 days", "5 apples", "next year"]) expect(parseCheckBack(s, now, zone)).toBeNull();
+  });
+
+  it("formats short gaps", () => {
+    expect(formatIn(5 * 60_000)).toBe("5 minutes");
+    expect(formatIn(90 * 60_000)).toBe("1 hour 30 minutes");
+    expect(formatIn(2 * 86_400_000)).toBe("2 days");
+    expect(formatIn(7 * 86_400_000)).toBe("1 week");
+  });
+});
+
 describe("schedule", () => {
   const now = new Date("2026-10-02T10:00:00Z");
   it("backs off saves and goes quiet after three nudges", () => {
@@ -131,6 +172,8 @@ describe("schedule", () => {
     expect(afterNudge({ kind: "save", gapDays: 2, nudgeCount: 2 }, now)).toEqual({ status: "quiet", nextAt: null, nudgeCount: 3 });
   });
   it("gives a task one follow-up a day later", () => {
+    // A gap of minutes still backs off from a day after the first reminder.
+    expect(afterNudge({ kind: "save", gapDays: 5 / 1440, nudgeCount: 0 }, now).nextAt).toEqual(new Date(now.getTime() + 2 * 86_400_000));
     expect(afterNudge({ kind: "task", gapDays: 1, nudgeCount: 0 }, now).nextAt).toEqual(new Date("2026-10-03T10:00:00Z"));
     expect(afterNudge({ kind: "task", gapDays: 1, nudgeCount: 1 }, now).status).toBe("quiet");
   });

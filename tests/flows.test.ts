@@ -127,6 +127,28 @@ describe("saved posts", () => {
     expect(item.nextAt).toEqual(later(START, 5));
   });
 
+  it("takes a custom check-back time from the Other time button", async () => {
+    const t = setup({ now: START, llm: { summary: summaryFake } });
+    await onboard(t);
+    await t.say("https://example.com/article");
+    await t.tap("i:1:y");
+    expect(t.out.last().buttons?.[1]?.map((b) => b.text)).toEqual(["Other time"]);
+    await t.tap("g:1:o");
+    expect(t.out.last().html).toContain("5 min, 2 hours");
+    await t.say("soon-ish");
+    expect(t.out.last().html).toContain("I could not read that");
+    await t.say("5 min");
+    expect(t.out.last().html).toBe("Saved. I will check in on Friday 2 Oct, 11:05 (in 5 minutes).");
+
+    const item = (await t.repo.getItem(1, 1))!;
+    expect(item.nextAt).toEqual(new Date(START.getTime() + 5 * 60_000));
+    expect((await runTick(t.deps, { now: new Date(START.getTime() + 4 * 60_000) })).nudged).toBe(0);
+    expect((await runTick(t.deps, { now: new Date(START.getTime() + 6 * 60_000) })).nudged).toBe(1);
+    // The next follow-up waits at least a day, not another few minutes.
+    const after = (await t.repo.getItem(1, 1))!;
+    expect(after.nextAt!.getTime()).toBeGreaterThanOrEqual(START.getTime() + DAY);
+  });
+
   it("uses the default gap for maybe later, and keeps a no without a reminder", async () => {
     const t = setup({ now: START, llm: { summary: summaryFake } });
     await onboard(t);

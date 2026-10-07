@@ -48,8 +48,10 @@ Open the bot in Telegram and send `/start`. Put your own Telegram id in `ADMIN_T
    ```bash
    npm run set-webhook -- https://your-project.vercel.app
    ```
-4. Schedule the reminders. On cron-job.org create a job every 15 minutes that calls
+4. Schedule the reminders. On cron-job.org create a job every minute that calls
    `https://your-project.vercel.app/api/cron/tick?secret=<CRON_SECRET>`.
+   Reminders fire on the first run after they are due, so the interval is how late a reminder can be;
+   users can pick check-back times like "5 min", so every minute keeps them on time.
    (Vercel Cron also works on paid plans; it sends the secret as a Bearer header, which the endpoint accepts.)
 5. Check `https://your-project.vercel.app/api/health`.
 

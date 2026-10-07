@@ -28,13 +28,16 @@ import {
   addDays,
   addHours,
   calendarContext,
+  DAY_MS,
   formatDate,
+  formatIn,
   formatDay,
   formatWhen,
   isIsoDate,
   isValidZone,
   localNow,
   localTime,
+  parseCheckBack,
   parseGap,
   parseTimeOfDay,
   resolveZone,
@@ -123,6 +126,9 @@ const say = (d: Deps, task: string, p: PromptPair) => d.llm.text(task, p.system,
 const zoneOf = (u: User) => u.timezone ?? "UTC";
 const isSave = (i: Item): i is Item & { payload: SavePayload } => i.kind === "save";
 const isTask = (i: Item): i is Item & { payload: TaskPayload } => i.kind === "task";
+// A check-back of minutes or hours is for the first reminder only. Later
+// follow-ups (partly done, not yet, reopened) wait at least a day.
+const followUpDays = (i: Item) => Math.max(i.gapDays, 1);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -266,10 +272,15 @@ export async function handleCallback(d: Deps, c: Callback) {
   }
   if (kind === "g") {
     if (item.status !== "draft" || !isSave(item)) return void (await removeButtons());
+    if (b === "o") {
+      await removeButtons();
+      await setPending(d, u, { kind: "save_gap", itemId: item.id });
+      return void (await d.out.send(u.chatId, "When should I check back? Send a time like 5 min, 2 hours, 3 days, 1 week, 6pm or tomorrow 9am."));
+    }
     const days = Number(b);
     if (![1, 2, 3, 7].includes(days)) return;
     await removeButtons();
-    return finishSave(d, u, item, days);
+    return finishSave(d, u, item, addDays(d.now(), days));
   }
   if (kind === "n" || kind === "t") {
     if (item.status === "done" || item.status === "dropped") {
@@ -285,7 +296,7 @@ export async function handleCallback(d: Deps, c: Callback) {
   if (kind === "r") {
     if (item.status !== "quiet") return void (await removeButtons());
     await removeButtons();
-    const next = isTask(item) ? addDays(d.now(), 1) : addDays(d.now(), item.gapDays);
+    const next = isTask(item) ? addDays(d.now(), 1) : addDays(d.now(), followUpDays(item));
     await d.repo.updateItem(item.id, u.id, { status: "open", nextAt: next, nudgeCount: 0 });
     return void (await d.out.send(u.chatId, `Back on the list. I will check in on ${formatWhen(next, zoneOf(u), d.now())}.`));
   }
@@ -386,10 +397,11 @@ async function command(d: Deps, u: User, m: Incoming, cmd: string, arg: string) 
     case "jump": {
       // Demo helper: runs the scheduler as if time had moved forward.
       if (!d.adminIds.has(u.id)) return void (await d.out.send(u.chatId, "Unknown command. /help lists what I can do."));
-      const days = parseGap(arg || "2") ?? 2;
+      // "/jump 2d", "/jump 3", "/jump 10m", "/jump 2h"
+      const at = parseCheckBack(arg || "2", now, zone) ?? addDays(now, 2);
       const { runTick } = await import("../tick.js");
-      const r = await runTick(d, { now: addDays(now, days), userId: u.id });
-      return void (await d.out.send(u.chatId, `Ran the scheduler ${days} day${days > 1 ? "s" : ""} ahead: ${r.nudged} reminder${r.nudged === 1 ? "" : "s"} sent.`));
+      const r = await runTick(d, { now: at, userId: u.id });
+      return void (await d.out.send(u.chatId, `Ran the scheduler ${formatIn(at.getTime() - now.getTime())} ahead: ${r.nudged} reminder${r.nudged === 1 ? "" : "s"} sent.`));
     }
     default:
       return void (await d.out.send(u.chatId, "Unknown command. /help lists what I can do."));
@@ -432,12 +444,12 @@ async function pending(d: Deps, u: User, m: Incoming, text: string): Promise<boo
       if (url) break;
       const item = await d.repo.getItem(p.itemId, u.id);
       if (!item || item.status !== "draft" || !isSave(item)) break;
-      const days = parseGap(text.replace(/^in\s+/i, ""));
-      if (!days) {
-        await d.out.send(u.chatId, "Send a number of days, like 3, or tap a button.", gapButtons(item.id));
+      const at = parseCheckBack(text, d.now(), zoneOf(u));
+      if (!at) {
+        await d.out.send(u.chatId, "I could not read that. Send a time like 5 min, 2 hours, 3 days, 1 week or 6pm (up to 60 days), or tap a button.", gapButtons(item.id));
         return true;
       }
-      await finishSave(d, u, item, days);
+      await finishSave(d, u, item, at);
       return true;
     }
     case "paste_for": {
@@ -510,7 +522,7 @@ async function pending(d: Deps, u: User, m: Incoming, text: string): Promise<boo
         const o = await ask(d, "outcome", OutcomeSchema, outcomePrompt(item.payload.title, intent, text));
         if (o.result === "unclear") break;
         const action = o.result === "done" ? "done" : o.result === "partial" ? "partial" : o.result === "drop" ? "drop" : "snooze";
-        await applyOutcome(d, u, item, action, { note: o.note ?? undefined, snoozeDays: o.snoozeDays ?? (o.result === "not_yet" ? item.gapDays : 3) });
+        await applyOutcome(d, u, item, action, { note: o.note ?? undefined, snoozeDays: o.snoozeDays ?? (o.result === "not_yet" ? followUpDays(item) : 3) });
         return true;
       } catch (e) {
         d.log("outcome parse failed", String(e));
@@ -683,7 +695,7 @@ async function saveIntent(d: Deps, u: User, item: Item & { payload: SavePayload 
   if (choice === "maybe") {
     const payload = { ...item.payload, intent: "maybe later" };
     await d.repo.updateItem(item.id, u.id, { payload });
-    return finishSave(d, u, { ...item, payload }, u.defaultGapDays);
+    return finishSave(d, u, { ...item, payload }, addDays(d.now(), u.defaultGapDays));
   }
   const payload = { ...item.payload, intent: words ? words.slice(0, 300) : "plans to act on it" };
   await d.repo.updateItem(item.id, u.id, { payload });
@@ -691,14 +703,15 @@ async function saveIntent(d: Deps, u: User, item: Item & { payload: SavePayload 
   await d.out.send(u.chatId, `When should I check back? Your default is ${u.defaultGapDays} day${u.defaultGapDays > 1 ? "s" : ""}.`, gapButtons(item.id));
 }
 
-async function finishSave(d: Deps, u: User, item: Item & { payload: SavePayload }, days: number) {
+async function finishSave(d: Deps, u: User, item: Item & { payload: SavePayload }, next: Date) {
   const now = d.now();
-  const next = addDays(now, days);
+  const days = (next.getTime() - now.getTime()) / DAY_MS;
   const fresh = (await d.repo.getItem(item.id, u.id)) ?? item;
   const payload = { ...(fresh.payload as SavePayload), intent: (fresh.payload as SavePayload).intent ?? "plans to act on it" };
   await d.repo.updateItem(item.id, u.id, { status: "open", gapDays: days, nextAt: next, nudgeCount: 0, payload });
   await setPending(d, u, null);
-  await d.out.send(u.chatId, `Saved. I will check in on ${formatWhen(next, zoneOf(u), now)}.`);
+  const soon = days < 1 ? ` (in ${formatIn(next.getTime() - now.getTime())})` : "";
+  await d.out.send(u.chatId, `Saved. I will check in on ${formatWhen(next, zoneOf(u), now)}${soon}.`);
   await remember(
     d,
     u,
@@ -849,7 +862,7 @@ async function applyOutcome(d: Deps, u: User, item: Item, action: OutcomeAction,
       await d.out.send(u.chatId, `Marked "${esc(item.payload.title)}" done. Nice work.`);
       return record("done");
     case "partial": {
-      const next = addDays(now, item.gapDays);
+      const next = addDays(now, followUpDays(item));
       await d.repo.updateItem(item.id, u.id, { status: "open", nextAt: next, nudgeCount: 0 });
       await d.out.send(u.chatId, `Good progress. I will check on the rest on ${formatWhen(next, tz, now)}.`);
       return record("partly done");

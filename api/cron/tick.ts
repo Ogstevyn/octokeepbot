@@ -2,7 +2,7 @@ import { config } from "../../src/config.js";
 import { getBot } from "../../src/runtime.js";
 import { runTick } from "../../src/tick.js";
 
-// Called every 15 minutes by an external scheduler (cron-job.org) or Vercel
+// Called every minute by an external scheduler (cron-job.org) or Vercel
 // Cron. Accepts the secret as "Authorization: Bearer <CRON_SECRET>" (what
 // Vercel Cron sends) or as ?secret=<CRON_SECRET>.
 // Optional for demos: ?now=<ISO time> runs the scheduler as of that time, and

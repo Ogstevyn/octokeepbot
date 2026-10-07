@@ -35,6 +35,7 @@ export const gapButtons = (id: number): Button[][] => [
     { text: "3 days", data: `g:${id}:3` },
     { text: "1 week", data: `g:${id}:7` },
   ],
+  [{ text: "Other time", data: `g:${id}:o` }],
 ];
 
 export const defaultGapButtons: Button[][] = [
@@ -78,7 +79,7 @@ export const timeButtons: Button[][] = [
 
 export const HELP = `<b>How to use OctoKeep</b>
 
-Send a link to a video, article or post. I summarise it, ask what you plan to do, and check back after the gap you pick.
+Send a link to a video, article or post. I summarise it, ask what you plan to do, and check back when you choose: a few days, a week, or any time you type, like 30 min or 6pm.
 
 For Instagram, send a screenshot of the post (tap "more" first so the whole caption shows) or a screen recording of the Reel. Several screenshots sent together become one summary.
 
