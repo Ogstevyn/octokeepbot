@@ -4,6 +4,8 @@ Notes from building OctoKeep on Walrus Memory (`@mysten-incubation/memwal` 0.1.8
 
 ## 1. A fact re-stated within 30 minutes is silently dropped
 
+Filed as https://github.com/MystenLabs/MemWal/issues/1127.
+
 **What I did.** Called `remember("favourite drink: tea")`, then `remember("favourite drink: coffee")`, then `remember("favourite drink: tea")` again a few minutes later, each awaited to completion, then `recall({ query: "favourite drink", sort: "recent" })`.
 
 **Expected.** Three memories, newest first: tea, coffee, tea. Or, if duplicates are intentionally merged, some signal that the third call wrote nothing.
@@ -16,6 +18,15 @@ Notes from building OctoKeep on Walrus Memory (`@mysten-incubation/memwal` 0.1.8
 
 **Suggested fix.** Scope the derived key to one logical call rather than to content: generate it once per `remember()` invocation and reuse it only for that call's own retries (the existing `pendingRememberKeys` map already does this within an instance). If cross-instance replay protection is still wanted, return `deduplicated: true` in the accepted response so callers can see it, and document the window next to `remember()`, not only in the changelog.
 
+**Mainnet run** (`npm run repro -- --live`):
+
+```
+remember "tea"    -> job 519fa53e-2f00-471b-80e6-763f9f8965cd (33 s)
+remember "coffee" -> job 9cd76f6d-bb97-46bb-8c5e-7d42c3be2907
+remember "tea"    -> job 519fa53e-2f00-471b-80e6-763f9f8965cd  <- same job as the first call, nothing new was written
+recall sort=recent: "favourite drink: coffee", "favourite drink: tea"
+```
+
 **Workaround.** Pass your own `idempotencyKey` (a fresh UUID per intended write), or include something unique in the text. OctoKeep's memory lines include item titles and dates, so it is rarely affected.
 
 ## 2. `MemWalMock` does not model that collapse
@@ -27,6 +38,8 @@ Notes from building OctoKeep on Walrus Memory (`@mysten-incubation/memwal` 0.1.8
 **Suggested fix.** Have `MemWalMock.rememberAsync` derive the same key and return the existing job inside the window, or document the difference in the mock's header comment.
 
 ## 3. IPv6 loopback relayer URLs get the plaintext-HTTP warning
+
+Filed as https://github.com/MystenLabs/MemWal/issues/1128.
 
 **What I did.** `MemWal.create({ ..., serverUrl: "http://[::1]:8000" })` for a local relayer.
 

@@ -26,7 +26,7 @@ Prize tracks: Best Chatbot, Beyond the Big Two (non-Claude/GPT model), Best Arti
 
 **Model used:** Open-weight models on Groq. Text: the model in docs/EVAL.md that you settled on. Screenshots: qwen/qwen3.8-27b. Recordings and voice: whisper-large-v3-turbo. No Claude or GPT API.
 
-**One bug:** Since SDK 0.1.8, `remember()` derives its idempotency key from the text plus a 30-minute bucket, so a fact the user re-states within 30 minutes (a preference that flips back, a habit logged twice) is silently collapsed onto the earlier write. The response is a normal 202 with the old job id, and `recall({ sort: "recent" })` then returns the stale value. MemWalMock does not model it, so tests pass while production drops the write. Repro: `npm run repro -- --live`. Issue: [link].
+**One bug:** Since SDK 0.1.8, `remember()` derives its idempotency key from the text plus a 30-minute bucket, so a fact the user re-states within 30 minutes (a preference that flips back, a habit logged twice) is silently collapsed onto the earlier write. The response is a normal 202 with the old job id, and `recall({ sort: "recent" })` then returns the stale value. MemWalMock does not model it, so tests pass while production drops the write. Repro: `npm run repro -- --live`. Issue: https://github.com/MystenLabs/MemWal/issues/1127. Also filed: https://github.com/MystenLabs/MemWal/issues/1128 (IPv6 loopback flagged as plaintext remote host).
 
 **One improvement:** Let `remember()` take structured tags (for example `kind: "outcome"`) and let `recall()` filter by them and by a time range. OctoKeep has to prefix every line with `[SAVE]`, `[TASK]` or `[OUTCOME]` and hope similarity search keeps them apart; "what did I finish this week" needs a filter, not a vector.
 
@@ -34,7 +34,7 @@ Prize tracks: Best Chatbot, Beyond the Big Two (non-Claude/GPT model), Best Arti
 
 **Users / memories:** paste the output of `npm run stats`.
 
-## GitHub issue 1 (file at github.com/MystenLabs/MemWal/issues)
+## GitHub issue 1 (filed: https://github.com/MystenLabs/MemWal/issues/1127)
 
 Search the issues for "idempotency" first. If it is already reported, add your reproduction as a comment instead.
 
@@ -71,7 +71,7 @@ Full output of my run:
 <paste the output of npm run repro -- --live>
 ```
 
-## GitHub issue 2
+## GitHub issue 2 (filed: https://github.com/MystenLabs/MemWal/issues/1128)
 
 Search the issues for "::1" first.
 
