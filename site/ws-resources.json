@@ -3,7 +3,9 @@
   "metadata": {
     "description": "A Telegram bot that reads what you save, remembers it with Walrus Memory, and checks back until you act on it.",
     "project_url": "https://github.com/Ogstevyn/octobot",
-    "creator": "Ogstevyn"
+    "creator": "Ogstevyn",
+    "link": "https://octokeepbot.vercel.app",
+    "image_url": "https://octokeepbot.vercel.app/images/og.png"
   },
   "headers": {
     "/404.html": {

@@ -1057,3 +1057,153 @@ main > .wrap > .notice {
 .sprite {
   position: absolute;
 }
+
+/* ------------------------------------------------------------------
+   Wide screens: use the width instead of leaving empty side margins.
+   ------------------------------------------------------------------ */
+
+@media (min-width: 1100px) {
+  .hero {
+    padding-top: 56px;
+  }
+
+  .hero h1 {
+    font-size: clamp(64px, 5.4vw, 92px);
+  }
+
+  .hero p {
+    font-size: 20px;
+  }
+
+  .hero__mascot {
+    width: clamp(240px, 20vw, 320px);
+    height: auto;
+  }
+
+  /* Both example conversations side by side; the toggle is not needed. */
+  #how {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+    align-items: start;
+  }
+
+  #how .panel__head {
+    grid-column: 1 / -1;
+    margin-bottom: 8px;
+  }
+
+  #how .panel__controls {
+    display: none;
+  }
+
+  #how [role="tabpanel"][hidden] {
+    display: block;
+  }
+
+  #how [role="tabpanel"]::before {
+    display: block;
+    padding: 22px 40px 0;
+    color: var(--text-faint);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  #panel-post::before {
+    content: "Saved post";
+  }
+
+  #panel-task::before {
+    content: "Task";
+  }
+
+  #how .code pre {
+    padding-top: 16px;
+  }
+
+  /* Setup steps in two columns. */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--border);
+  }
+
+  .step + .step {
+    border-top: 0;
+  }
+
+  /* Developers: install commands beside the code sample. */
+  #developers {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+    grid-template-rows: auto auto 1fr auto;
+    column-gap: 24px;
+    align-items: start;
+  }
+
+  #developers .panel__head,
+  #developers .callout {
+    grid-column: 1 / -1;
+  }
+
+  #developers .tabs {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  #developers [role="tabpanel"] {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  #developers .code--spaced {
+    grid-column: 2;
+    grid-row: 2 / 4;
+    margin-top: 0;
+  }
+}
+
+@media (min-width: 1400px) {
+  /* Commands and privacy share a row. */
+  main > .wrap {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: row dense;
+    column-gap: 32px;
+  }
+
+  main > .wrap > * {
+    grid-column: 1 / -1;
+  }
+
+  main > .wrap > #commands {
+    grid-column: 1;
+  }
+
+  main > .wrap > #privacy {
+    grid-column: 2;
+  }
+}
+
+/* Big monitors: scale the whole page so it reads like a laptop layout
+   instead of a narrow strip of small text. */
+@media (min-width: 1800px) {
+  body {
+    zoom: 1.12;
+  }
+}
+
+@media (min-width: 2300px) {
+  body {
+    zoom: 1.35;
+  }
+}
+
+@media (min-width: 3000px) {
+  body {
+    zoom: 2;
+  }
+}

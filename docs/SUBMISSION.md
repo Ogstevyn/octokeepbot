@@ -22,7 +22,7 @@ Prize tracks: Best Chatbot, Beyond the Big Two (non-Claude/GPT model), Best Arti
 
 **Repository:** https://github.com/Ogstevyn/octobot
 
-**Live app:** https://t.me/OctoKeep_bot (landing page: https://octokeep.wal.app)
+**Live app:** https://t.me/OctoKeep_bot (landing page: https://octokeepbot.vercel.app)
 
 **Model used:** Open-weight models on Groq. Text: the model in docs/EVAL.md that you settled on. Screenshots: qwen/qwen3.8-27b. Recordings and voice: whisper-large-v3-turbo. No Claude or GPT API.
 
@@ -120,7 +120,7 @@ SDK: https://github.com/MystenLabs/MemWal
 
 ## Demo video (90 seconds)
 
-1. Open octokeep.wal.app, tap Open in Telegram.
+1. Open octokeepbot.vercel.app, tap Open in Telegram.
 2. Send a YouTube link. Show the summary and actions, tap "Yes", pick 2 days.
 3. Send an Instagram screenshot. Show the summary.
 4. Type `/jump 2d`. Show the reminder that mentions the first step.

@@ -19,9 +19,10 @@
   <meta name="twitter:title" content="OctoKeep: stop bookmarking, start doing">
   <meta name="twitter:description" content="Send a link. Get the summary. Get reminded until you act on it.">
   <!-- site-url:start -->
-  <!-- Set siteUrl in site.config.json and rerun scripts/sync-site.mjs to make these absolute and add canonical and og:url. -->
-  <meta property="og:image" content="images/og.png">
-  <meta name="twitter:image" content="images/og.png">
+  <link rel="canonical" href="https://octokeepbot.vercel.app/">
+  <meta property="og:url" content="https://octokeepbot.vercel.app/">
+  <meta property="og:image" content="https://octokeepbot.vercel.app/images/og.png">
+  <meta name="twitter:image" content="https://octokeepbot.vercel.app/images/og.png">
   <!-- site-url:end -->
 
   <link rel="icon" href="favicon.ico" sizes="any">
@@ -55,7 +56,7 @@
       </a>
       <div class="site-header__actions">
         <span class="handle" data-text="botHandle">@OctoKeep_bot</span>
-        <a class="btn btn--outline btn--sm" href="https://t.me/OctoKeep_bot" data-link="bot">
+        <a class="btn btn--outline btn--sm" href="https://t.me/OctoKeep_bot" data-link="bot" target="_blank" rel="noopener noreferrer">
           <span>Open<span class="btn__long"> in Telegram</span></span>
           <svg aria-hidden="true"><use href="#i-external"/></svg>
         </a>
@@ -79,7 +80,7 @@
         <span>OctoKeep lives in Telegram. Before you connect it, you need a free Walrus Memory account (<a href="#setup">see setup below</a>). It holds your memory, and you can revoke OctoKeep's access at any time.</span>
       </p>
 
-      <a class="card card--primary" href="https://t.me/OctoKeep_bot" data-link="bot">
+      <a class="card card--primary" href="https://t.me/OctoKeep_bot" data-link="bot" target="_blank" rel="noopener noreferrer">
         <svg class="card__icon" aria-hidden="true"><use href="#i-send"/></svg>
         <span class="card__body">
           <span class="card__title">Open OctoKeep in Telegram</span>
@@ -102,7 +103,7 @@
             </span>
             <svg class="card__arrow" aria-hidden="true"><use href="#i-arrow"/></svg>
           </a>
-          <a class="card" href="https://github.com/Ogstevyn/octobot" data-link="repo">
+          <a class="card" href="https://github.com/Ogstevyn/octobot" data-link="repo" target="_blank" rel="noopener noreferrer">
             <svg class="card__icon" aria-hidden="true"><use href="#i-code"/></svg>
             <span class="card__body">
               <span class="card__title">GitHub</span>
@@ -110,7 +111,7 @@
             </span>
             <svg class="card__arrow" aria-hidden="true"><use href="#i-arrow"/></svg>
           </a>
-          <a class="card" href="https://memory.walrus.xyz" data-link="memory">
+          <a class="card" href="https://memory.walrus.xyz" data-link="memory" target="_blank" rel="noopener noreferrer">
             <svg class="card__icon" aria-hidden="true"><use href="#i-memory"/></svg>
             <span class="card__body">
               <span class="card__title">Walrus Memory</span>
@@ -264,7 +265,7 @@ Related: "Supabase auth in 10 minutes", saved 3 Oct
             <p>You own your memory. OctoKeep only gets a key you can revoke.</p>
           </div>
           <div class="panel__controls">
-            <a class="btn btn--light btn--sm" href="https://t.me/OctoKeep_bot" data-link="bot">Open the bot <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
+            <a class="btn btn--light btn--sm" href="https://t.me/OctoKeep_bot" data-link="bot" target="_blank" rel="noopener noreferrer">Open the bot <svg aria-hidden="true"><use href="#i-arrow"/></svg></a>
           </div>
         </div>
         <ol class="steps">
@@ -272,7 +273,7 @@ Related: "Supabase auth in 10 minutes", saved 3 Oct
             <span class="step__num" aria-hidden="true">1</span>
             <div>
               <h3>Create your Walrus Memory account</h3>
-              <p>Open <a href="https://memory.walrus.xyz" data-link="memory">memory.walrus.xyz</a>, sign in, and finish the account setup.</p>
+              <p>Open <a href="https://memory.walrus.xyz" data-link="memory" target="_blank" rel="noopener noreferrer">memory.walrus.xyz</a>, sign in, and finish the account setup.</p>
               <!-- Screenshot slot: <img src="images/setup-1.webp" width="1200" height="750" loading="lazy" alt="The Walrus Memory dashboard after signing in, with the Create a delegate key card at the top."> -->
             </div>
           </li>
@@ -296,7 +297,7 @@ Related: "Supabase auth in 10 minutes", saved 3 Oct
             <span class="step__num" aria-hidden="true">4</span>
             <div>
               <h3>Start the bot</h3>
-              <p>Open <a href="https://t.me/OctoKeep_bot" data-link="bot"><span data-text="botHandle">@OctoKeep_bot</span></a>, send this, and choose your timezone so reminders arrive at the right hour.</p>
+              <p>Open <a href="https://t.me/OctoKeep_bot" data-link="bot" target="_blank" rel="noopener noreferrer"><span data-text="botHandle">@OctoKeep_bot</span></a>, send this, and choose your timezone so reminders arrive at the right hour.</p>
               <div class="code code--tight">
                 <pre><span class="tok-p">/start</span></pre>
                 <button class="icon-btn" type="button" data-copy="/start" aria-label="Copy /start"><svg class="icon-copy" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-check" aria-hidden="true"><use href="#i-check"/></svg></button>
@@ -361,7 +362,7 @@ Related: "Supabase auth in 10 minutes", saved 3 Oct
             <p>OctoKeep is open source. Run your own.</p>
           </div>
           <div class="panel__controls">
-            <a class="btn btn--outline btn--sm" href="https://github.com/Ogstevyn/octobot" data-link="repo">View on GitHub <svg aria-hidden="true"><use href="#i-external"/></svg></a>
+            <a class="btn btn--outline btn--sm" href="https://github.com/Ogstevyn/octobot" data-link="repo" target="_blank" rel="noopener noreferrer">View on GitHub <svg aria-hidden="true"><use href="#i-external"/></svg></a>
           </div>
         </div>
 
@@ -412,10 +413,10 @@ npm run dev</pre>
 
   <footer class="site-footer">
     <div class="wrap site-footer__inner">
-      <p>OctoKeep is built on <a href="https://memory.walrus.xyz" data-link="memory">Walrus Memory</a>. Hosted on Walrus Sites.</p>
+      <p>OctoKeep is built on <a href="https://memory.walrus.xyz" data-link="memory" target="_blank" rel="noopener noreferrer">Walrus Memory</a>. Hosted on Vercel.</p>
       <nav aria-label="Footer">
-        <a href="https://t.me/OctoKeep_bot" data-link="bot">Telegram</a>
-        <a href="https://github.com/Ogstevyn/octobot" data-link="repo">GitHub</a>
+        <a href="https://t.me/OctoKeep_bot" data-link="bot" target="_blank" rel="noopener noreferrer">Telegram</a>
+        <a href="https://github.com/Ogstevyn/octobot" data-link="repo" target="_blank" rel="noopener noreferrer">GitHub</a>
         <a href="#setup">Setup guide</a>
       </nav>
     </div>

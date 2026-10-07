@@ -79,9 +79,12 @@
   --radius-pill: 999px;
 
   /* Layout */
-  --header-width: 1280px;
-  --content-width: 1100px;
-  --gutter: 24px;
+  /* Layout: the content column grows with the screen up to 1440px; past
+     that, wide-screen zoom in main.css scales the whole page instead of
+     leaving empty margins. */
+  --header-width: 1440px;
+  --content-width: 1440px;
+  --gutter: clamp(16px, 4vw, 56px);
   --section-gap: 56px;
 }
 
