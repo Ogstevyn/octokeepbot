@@ -172,3 +172,37 @@ export const chatPrompt = (text: string) => ({
 The user sent a message that is not a link, a task or a question about their memory. Reply in one or two sentences. If it helps, mention that they can send a link to summarise or tell you something they want to do and when.`,
   prompt: text.slice(0, 1500),
 });
+
+// Learning paths and topics -------------------------------------------------------
+
+export const PathSchema = z.object({
+  title: z.string().trim().min(3).max(80),
+  steps: z
+    .array(z.object({ text: z.string().trim().min(3).max(200), from: nullableString.optional().default(null) }))
+    .min(2)
+    .max(8),
+});
+
+export const pathPrompt = (topic: string, saves: string[]) => ({
+  system: `${VOICE}
+The user saved the posts below about a topic. Turn them into one ordered learning path: 3 to 8 steps, from basics to advanced, each starting with a verb and under 20 words. For each step, "from" is the exact title of the saved post it draws on, or null. Use only these saves; do not invent resources.
+Format: {"title": string, "steps": [{"text": string, "from": string | null}]}`,
+  prompt: `Topic: ${topic.slice(0, 100)}
+
+Saved posts:
+${saves.map((s) => `- ${s}`).join("\n")}`,
+});
+
+export const TopicsSchema = z.object({
+  topics: z
+    .array(z.object({ name: z.string().trim().min(2).max(40), ids: z.array(z.number().int()).min(1) }))
+    .min(1)
+    .max(8),
+});
+
+export const topicsPrompt = (items: { id: number; title: string }[]) => ({
+  system: `${VOICE}
+Group the user's saved posts into 2 to 8 topics with short names (1 to 3 words, like "Video editing" or "Sui"). Every id goes in exactly one topic. Put stragglers in "Other".
+Format: {"topics": [{"name": string, "ids": [number]}]}`,
+  prompt: items.map((i) => `${i.id}: ${i.title}`).join("\n"),
+});

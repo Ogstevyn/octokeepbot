@@ -25,6 +25,8 @@ const schema = z.object({
   OLLAMA_HOST: z.string().default("http://localhost:11434"),
 
   ADMIN_TELEGRAM_IDS: z.string().optional(),
+  // Used in buddy invite links (t.me/<username>?start=...).
+  TELEGRAM_BOT_USERNAME: z.preprocess((v) => (v === "" ? undefined : v), z.string().regex(/^[A-Za-z0-9_]{5,32}$/).default("OctoKeep_bot")),
 });
 
 export type Config = z.infer<typeof schema> & {

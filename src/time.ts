@@ -194,6 +194,16 @@ export function formatIn(ms: number): string {
   return days % 7 === 0 ? plural(days / 7, "week") : plural(days, "day");
 }
 
+// Local hour (0-23) of an instant.
+export function localHour(when: Date, zone: string): number {
+  return DateTime.fromJSDate(when).setZone(zone).hour;
+}
+
+// The same local day as `when`, at hour:00.
+export function atLocalHour(when: Date, zone: string, hour: number): Date {
+  return DateTime.fromJSDate(when).setZone(zone).set({ hour, minute: 0, second: 0, millisecond: 0 }).toJSDate();
+}
+
 // "3", "3d", "3 days", "1w", "2 weeks" -> days (1..60)
 export function parseGap(input: string): number | null {
   const m = input.trim().toLowerCase().match(/^(\d{1,2})\s*(d|day|days|w|wk|week|weeks)?$/);

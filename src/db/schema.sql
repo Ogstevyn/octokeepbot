@@ -67,3 +67,11 @@ CREATE TABLE IF NOT EXISTS media_parts (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, group_id, message_id)
 );
+
+-- Accountability buddy: one friend per user who hears about shared goals.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS buddy_id BIGINT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS buddy_invite TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS users_buddy_invite ON users (buddy_invite) WHERE buddy_invite IS NOT NULL;
+
+-- Reply counts per local hour, so reminders can land when the user answers.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS active_hours TEXT;

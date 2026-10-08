@@ -27,7 +27,7 @@ export class MemoryRepo implements Repo {
   }
 
   async ensureUser(id: number, chatId: number, firstName: string) {
-    const u = this.users.get(id) ?? { id, chatId, firstName, timezone: null, defaultGapDays: 2, creds: null, pending: null };
+    const u = this.users.get(id) ?? { id, chatId, firstName, timezone: null, defaultGapDays: 2, creds: null, pending: null, buddyId: null, buddyInvite: null, activeHours: null };
     u.chatId = chatId;
     u.firstName = firstName;
     this.users.set(id, u);
@@ -38,6 +38,11 @@ export class MemoryRepo implements Repo {
     const u = this.users.get(id);
     if (!u) return;
     Object.assign(u, this.clone(patch));
+  }
+
+  async findUserByBuddyInvite(token: string) {
+    const u = [...this.users.values()].find((x) => x.buddyInvite === token);
+    return u ? this.clone(u) : null;
   }
 
   async listConnectedUserIds() {

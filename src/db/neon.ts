@@ -28,6 +28,9 @@ export class NeonRepo implements Repo {
       defaultGapDays: Number(r.default_gap_days),
       creds: r.creds_enc ? decryptJson<MemwalCreds>(r.creds_enc as string, this.keyHex) : null,
       pending: r.pending_enc ? decryptJson<Pending>(r.pending_enc as string, this.keyHex) : null,
+      buddyId: r.buddy_id == null ? null : Number(r.buddy_id),
+      buddyInvite: (r.buddy_invite as string | null) ?? null,
+      activeHours: r.active_hours ? (JSON.parse(r.active_hours as string) as number[]) : null,
     };
   }
 
@@ -75,9 +78,17 @@ export class NeonRepo implements Repo {
     if (patch.defaultGapDays !== undefined) add("default_gap_days", patch.defaultGapDays);
     if (patch.creds !== undefined) add("creds_enc", patch.creds ? encryptJson(patch.creds, this.keyHex) : null);
     if (patch.pending !== undefined) add("pending_enc", patch.pending ? encryptJson(patch.pending, this.keyHex) : null);
+    if (patch.buddyId !== undefined) add("buddy_id", patch.buddyId);
+    if (patch.buddyInvite !== undefined) add("buddy_invite", patch.buddyInvite);
+    if (patch.activeHours !== undefined) add("active_hours", patch.activeHours ? JSON.stringify(patch.activeHours) : null);
     if (!sets.length) return;
     params.push(id);
     await this.q(`UPDATE users SET ${sets.join(", ")}, updated_at = now() WHERE id = $${params.length}`, params);
+  }
+
+  async findUserByBuddyInvite(token: string) {
+    const rows = await this.q("SELECT * FROM users WHERE buddy_invite = $1", [token]);
+    return rows[0] ? this.toUser(rows[0]) : null;
   }
 
   async listConnectedUserIds() {

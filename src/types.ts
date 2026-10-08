@@ -5,7 +5,14 @@ export interface Action {
   effort: Effort;
 }
 
-export interface SavePayload {
+// Set when the user shares an item with their accountability buddy.
+export interface Shareable {
+  shared?: boolean;
+  // The buddy was told about a missed reminder (once per item).
+  buddyNotified?: boolean;
+}
+
+export interface SavePayload extends Shareable {
   title: string;
   url?: string;
   source: string;
@@ -14,7 +21,7 @@ export interface SavePayload {
   intent?: string;
 }
 
-export interface TaskPayload {
+export interface TaskPayload extends Shareable {
   title: string;
   raw: string;
   details: { question: string; answer: string }[];
@@ -62,7 +69,8 @@ export type Pending =
   | { kind: "task_time"; draft: TaskDraft }
   | { kind: "task_question"; draft: TaskDraft; index: number }
   | { kind: "nudge_reply"; itemId: number }
-  | { kind: "gap_custom" };
+  | { kind: "gap_custom" }
+  | { kind: "path"; title: string; steps: string[] };
 
 export interface MemwalCreds {
   accountId: string;
@@ -77,6 +85,12 @@ export interface User {
   defaultGapDays: number;
   creds: MemwalCreds | null;
   pending: Pending | null;
+  // Telegram id of the friend who hears about shared goals.
+  buddyId: number | null;
+  // Open invite token from /buddy, until a friend accepts it.
+  buddyInvite: string | null;
+  // How many times the user answered a reminder in each local hour (0-23).
+  activeHours: number[] | null;
 }
 
 export interface Button {

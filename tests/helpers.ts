@@ -141,6 +141,7 @@ export function setup(opts: { now?: Date; llm?: Record<string, Handler>; fetch?:
       })),
     now: () => now,
     adminIds: new Set([1]),
+    botUsername: "OctoKeep_bot",
     envCreds: { accountId: GOOD_ACCOUNT, key: GOOD_KEY },
     media,
     // Albums wait for their other photos; tests move the clock instead.

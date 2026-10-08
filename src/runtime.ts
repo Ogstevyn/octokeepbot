@@ -30,6 +30,7 @@ export function buildDeps(api: Api): Deps {
     fetchContent,
     now: () => new Date(),
     adminIds: c.adminIds,
+    botUsername: c.TELEGRAM_BOT_USERNAME,
     media: createMedia({ baseURL: c.llm.baseURL, apiKey: c.llm.apiKey, ...c.media }),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     envCreds: c.MEMWAL_PRIVATE_KEY && c.MEMWAL_ACCOUNT_ID ? { key: c.MEMWAL_PRIVATE_KEY, accountId: c.MEMWAL_ACCOUNT_ID } : null,

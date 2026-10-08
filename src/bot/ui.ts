@@ -96,6 +96,9 @@ Ask about your memory: "what did I save about Rust?" or "what have I been ignori
 /memory  how many memories are stored
 /gap  change your default check-back time
 /done 12  mark item 12 done
+/buddy  add a friend who hears if you miss a reminder
+/path rust  turn your saves on a topic into a learning plan
+/topics  your saves grouped by topic
 /timezone  change your timezone
 /connect  link your Walrus Memory account
 /disconnect  remove the saved key

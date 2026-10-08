@@ -11,7 +11,7 @@ export interface NewItem {
 }
 
 export type ItemPatch = Partial<Pick<Item, "status" | "payload" | "gapDays" | "dueAt" | "nextAt" | "nudgeCount" | "lastNudgedAt">>;
-export type UserPatch = Partial<Pick<User, "chatId" | "firstName" | "timezone" | "defaultGapDays" | "creds" | "pending">>;
+export type UserPatch = Partial<Pick<User, "chatId" | "firstName" | "timezone" | "defaultGapDays" | "creds" | "pending" | "buddyId" | "buddyInvite" | "activeHours">>;
 
 export interface OutboxEntry {
   id: number;
@@ -39,6 +39,7 @@ export interface Repo {
   ensureUser(id: number, chatId: number, firstName: string): Promise<User>;
   updateUser(id: number, patch: UserPatch): Promise<void>;
   listConnectedUserIds(): Promise<number[]>;
+  findUserByBuddyInvite(token: string): Promise<User | null>;
 
   createItem(item: NewItem): Promise<Item>;
   getItem(id: number, userId: number): Promise<Item | null>;

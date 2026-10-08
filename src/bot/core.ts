@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import type { Repo } from "../db/repo.js";
 import type { Llm } from "../llm/llm.js";
 import { LlmError } from "../llm/llm.js";
@@ -11,10 +12,14 @@ import {
   QuestionsSchema,
   questionsPrompt,
   nudgeLinePrompt,
+  PathSchema,
+  pathPrompt,
   RouteSchema,
   routePrompt,
   SummarySchema,
   summaryPrompt,
+  TopicsSchema,
+  topicsPrompt,
   WhenSchema,
   whenPrompt,
 } from "../llm/prompts.js";
@@ -27,6 +32,7 @@ import { findUrl } from "../sources/index.js";
 import {
   addDays,
   addHours,
+  atLocalHour,
   calendarContext,
   DAY_MS,
   formatDate,
@@ -35,6 +41,7 @@ import {
   formatWhen,
   isIsoDate,
   isValidZone,
+  localHour,
   localNow,
   localTime,
   parseCheckBack,
@@ -77,6 +84,8 @@ export interface Deps {
   fetchContent(url: string): Promise<FetchResult>;
   now(): Date;
   adminIds: Set<number>;
+  // For buddy invite links.
+  botUsername: string;
   envCreds: MemwalCreds | null;
   media: Media;
   sleep(ms: number): Promise<void>;
@@ -260,10 +269,26 @@ export async function handleCallback(d: Deps, c: Callback) {
     return afterWhen(d, u, draft);
   }
 
+  if (kind === "pa" && a === "go") {
+    await removeButtons();
+    if (u.pending?.kind !== "path") return;
+    return startPath(d, u, u.pending.title, u.pending.steps);
+  }
+  if (kind === "bd" && a === "rm") {
+    await removeButtons();
+    await d.repo.updateUser(u.id, { buddyId: null });
+    return void (await d.out.send(u.chatId, "Buddy removed. Send /buddy to invite someone else."));
+  }
+
   const id = Number(a);
   if (!Number.isSafeInteger(id)) return;
   const item = await d.repo.getItem(id, u.id);
   if (!item) return void (await removeButtons());
+
+  if (kind === "sb") {
+    await removeButtons();
+    return shareWithBuddy(d, u, item);
+  }
 
   if (kind === "i") {
     if (item.status !== "draft" || !isSave(item)) return void (await removeButtons());
@@ -280,7 +305,7 @@ export async function handleCallback(d: Deps, c: Callback) {
     const days = Number(b);
     if (![1, 2, 3, 7].includes(days)) return;
     await removeButtons();
-    return finishSave(d, u, item, addDays(d.now(), days));
+    return finishSave(d, u, item, addDays(d.now(), days), true);
   }
   if (kind === "n" || kind === "t") {
     if (item.status === "done" || item.status === "dropped") {
@@ -311,6 +336,7 @@ async function command(d: Deps, u: User, m: Incoming, cmd: string, arg: string) 
   const now = d.now();
   switch (cmd) {
     case "start": {
+      if (arg.startsWith("buddy_")) return acceptBuddy(d, u, arg.slice(6));
       const hi = u.firstName ? `Hi ${esc(u.firstName)}. ` : "";
       await d.out.send(u.chatId, `${hi}I am OctoKeep. Send me a link and I will summarise it, remember it, and check back until you act on it. Tell me something you want to do and when, and I will remind you with a plan.`);
       if (!u.timezone) return askTimezone(d, u, "First, which timezone are you in? Tap one or type your city.");
@@ -319,6 +345,14 @@ async function command(d: Deps, u: User, m: Incoming, cmd: string, arg: string) 
     }
     case "help":
       return void (await d.out.send(u.chatId, HELP));
+    case "buddy":
+      return buddyCommand(d, u);
+    case "path":
+      if (!(await ready(d, u))) return;
+      return learningPath(d, u, arg);
+    case "topics":
+      if (!(await ready(d, u))) return;
+      return topics(d, u);
     case "cancel":
       return void (await d.out.send(u.chatId, "Okay, stopped."));
     case "timezone":
@@ -663,6 +697,7 @@ async function startSave(d: Deps, u: User, url: string | undefined, pastedText?:
     return;
   }
 
+  const earlier = await earlierSave(d, u, content.url, memories);
   const payload: SavePayload = { title: s.title, url: content.url, source: content.source, summary: s.summary, actions: s.actions };
   const item = await d.repo.createItem({ userId: u.id, kind: "save", status: "draft", payload, gapDays: u.defaultGapDays });
 
@@ -675,7 +710,7 @@ async function startSave(d: Deps, u: User, url: string | undefined, pastedText?:
     "",
     "<b>Actions</b>",
     actions,
-    s.connection ? `\n${esc(s.connection)}` : "",
+    earlier ? `\n<b>You have been here before</b>\n${esc(earlier)}` : s.connection ? `\n${esc(s.connection)}` : "",
     "",
     "Do you want to act on this?",
   ].join("\n");
@@ -695,7 +730,7 @@ async function saveIntent(d: Deps, u: User, item: Item & { payload: SavePayload 
   if (choice === "maybe") {
     const payload = { ...item.payload, intent: "maybe later" };
     await d.repo.updateItem(item.id, u.id, { payload });
-    return finishSave(d, u, { ...item, payload }, addDays(d.now(), u.defaultGapDays));
+    return finishSave(d, u, { ...item, payload }, addDays(d.now(), u.defaultGapDays), true);
   }
   const payload = { ...item.payload, intent: words ? words.slice(0, 300) : "plans to act on it" };
   await d.repo.updateItem(item.id, u.id, { payload });
@@ -703,15 +738,18 @@ async function saveIntent(d: Deps, u: User, item: Item & { payload: SavePayload 
   await d.out.send(u.chatId, `When should I check back? Your default is ${u.defaultGapDays} day${u.defaultGapDays > 1 ? "s" : ""}.`, gapButtons(item.id));
 }
 
-async function finishSave(d: Deps, u: User, item: Item & { payload: SavePayload }, next: Date) {
+// `adapt` moves a whole-day check-back to the hour the user usually replies.
+async function finishSave(d: Deps, u: User, item: Item & { payload: SavePayload }, chosen: Date, adapt = false) {
   const now = d.now();
+  const adapted = adapt ? usualHour(u, chosen, now) : null;
+  const next = adapted ?? chosen;
   const days = (next.getTime() - now.getTime()) / DAY_MS;
   const fresh = (await d.repo.getItem(item.id, u.id)) ?? item;
   const payload = { ...(fresh.payload as SavePayload), intent: (fresh.payload as SavePayload).intent ?? "plans to act on it" };
   await d.repo.updateItem(item.id, u.id, { status: "open", gapDays: days, nextAt: next, nudgeCount: 0, payload });
   await setPending(d, u, null);
-  const soon = days < 1 ? ` (in ${formatIn(next.getTime() - now.getTime())})` : "";
-  await d.out.send(u.chatId, `Saved. I will check in on ${formatWhen(next, zoneOf(u), now)}${soon}.`);
+  const soon = days < 1 ? ` (in ${formatIn(next.getTime() - now.getTime())})` : adapted ? " (around when you usually reply)" : "";
+  await d.out.send(u.chatId, `Saved. I will check in on ${formatWhen(next, zoneOf(u), now)}${soon}.`, confirmButtons(u, item.id));
   await remember(
     d,
     u,
@@ -827,9 +865,9 @@ async function finishTask(d: Deps, u: User, draft: TaskDraft) {
     d.log("plan failed", String(e));
   }
   const payload: TaskPayload = { title: draft.title, raw: draft.raw, details: draft.details, plan };
-  await d.repo.createItem({ userId: u.id, kind: "task", status: "open", payload, gapDays: 1, dueAt: at, nextAt: at });
+  const created = await d.repo.createItem({ userId: u.id, kind: "task", status: "open", payload, gapDays: 1, dueAt: at, nextAt: at });
   await setPending(d, u, null);
-  await d.out.send(u.chatId, `Got it. ${formatWhen(at, tz, now)}. I will send your plan then.`);
+  await d.out.send(u.chatId, `Got it. ${formatWhen(at, tz, now)}. I will send your plan then.`, confirmButtons(u, created.id));
   await remember(
     d,
     u,
@@ -853,6 +891,7 @@ async function applyOutcome(d: Deps, u: User, item: Item, action: OutcomeAction,
   const now = d.now();
   const tz = zoneOf(u);
   if (u.pending?.kind === "nudge_reply" && u.pending.itemId === item.id) await setPending(d, u, null);
+  await noteReplyHour(d, u, now);
   const record = (result: string) =>
     remember(d, u, memoryLine.outcome({ title: item.payload.title, kind: item.kind === "task" ? "task" : "saved post", result, note: extra.note, date: formatDate(now, tz) }));
 
@@ -860,9 +899,10 @@ async function applyOutcome(d: Deps, u: User, item: Item, action: OutcomeAction,
     case "done":
       await d.repo.updateItem(item.id, u.id, { status: "done", nextAt: null });
       await d.out.send(u.chatId, `Marked "${esc(item.payload.title)}" done. Nice work.`);
+      if (item.payload.shared) await tellBuddy(d, u, `${esc(nameOf(u))} finished <b>${esc(item.payload.title)}</b>.`);
       return record("done");
     case "partial": {
-      const next = addDays(now, followUpDays(item));
+      const next = usualHour(u, addDays(now, followUpDays(item)), now) ?? addDays(now, followUpDays(item));
       await d.repo.updateItem(item.id, u.id, { status: "open", nextAt: next, nudgeCount: 0 });
       await d.out.send(u.chatId, `Good progress. I will check on the rest on ${formatWhen(next, tz, now)}.`);
       return record("partly done");
@@ -874,7 +914,7 @@ async function applyOutcome(d: Deps, u: User, item: Item, action: OutcomeAction,
     case "snooze":
     case "snooze3": {
       const days = action === "snooze3" ? 3 : Math.min(Math.max(extra.snoozeDays ?? 3, 1), 60);
-      const next = addDays(now, days);
+      const next = usualHour(u, addDays(now, days), now) ?? addDays(now, days);
       await d.repo.updateItem(item.id, u.id, { status: "open", nextAt: next, nudgeCount: 0 });
       await d.out.send(u.chatId, `Okay. Back on ${formatWhen(next, tz, now)}.`);
       if (extra.note) await record(`not yet, snoozed ${days} days`);
@@ -969,11 +1009,239 @@ export async function sendNudge(d: Deps, u: User, item: Item, now: Date): Promis
     }
   }
   const next = afterNudge(item, now);
+  if (isSave(item) && next.nextAt) next.nextAt = usualHour(u, next.nextAt, now) ?? next.nextAt;
   await d.repo.updateItem(item.id, u.id, { status: next.status, nextAt: next.nextAt, nudgeCount: next.nudgeCount, lastNudgedAt: now });
+  // A reminder went unanswered: a shared goal gets one message to the buddy.
+  const shared = item.payload;
+  if (shared.shared && !shared.buddyNotified && item.nudgeCount >= 1) {
+    const told = await tellBuddy(d, u, `${esc(nameOf(u))} planned to do <b>${esc(shared.title)}</b> and has not answered my last reminder. A quick nudge from you might help.`);
+    if (told) await d.repo.updateItem(item.id, u.id, { payload: { ...shared, buddyNotified: true } });
+  }
   if (!u.pending) await setPending(d, u, { kind: "nudge_reply", itemId: item.id });
   if (next.status === "quiet") {
     await remember(d, u, memoryLine.outcome({ title: item.payload.title, kind: item.kind === "task" ? "task" : "saved post", result: "reminded several times without a reply, moved to ignored", date: formatDate(now, tz) }));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Earlier saves
+// ---------------------------------------------------------------------------
+
+// Recall distance under which a saved post counts as "the same kind of thing".
+export const SIMILAR_DISTANCE = 0.45;
+
+const statusLine = (i: Item, zone: string, now: Date) => {
+  if (i.status === "done") return "You finished that one.";
+  if (i.status === "dropped") return "You decided not to act on it.";
+  if (i.status === "quiet") return "You did not answer my reminders for it.";
+  return i.nextAt ? `It is still open. I check in on ${formatWhen(i.nextAt, zone, now)}.` : "It is still open.";
+};
+
+// The same link saved before, or a similar save found in Walrus Memory, with
+// what happened to it. Null when there is nothing worth mentioning.
+async function earlierSave(d: Deps, u: User, url: string | undefined, memories: Recalled[]): Promise<string | null> {
+  const zone = zoneOf(u);
+  const now = d.now();
+  const saves = await d.repo.listItems(u.id, ["open", "quiet", "done", "dropped"], "save");
+  const same = url ? saves.find((i) => (i.payload as SavePayload).url === url) : undefined;
+  if (same) return `You already saved this on ${formatDate(same.createdAt, zone)} as "${same.payload.title}". ${statusLine(same, zone, now)}`;
+
+  const close = memories.filter((m) => m.text.startsWith("[SAVE]") && m.distance <= SIMILAR_DISTANCE).sort((a, b) => a.distance - b.distance)[0];
+  if (!close) return null;
+  const title = close.text.replace(/^\[SAVE\]\s*/, "").split(" | ")[0]!.trim();
+  if (!title) return null;
+  const match = saves.find((i) => i.payload.title.trim().toLowerCase() === title.toLowerCase());
+  const when = match ? match.createdAt : close.createdAt ? new Date(close.createdAt) : null;
+  const on = when && !Number.isNaN(when.getTime()) ? ` on ${formatDate(when, zone)}` : "";
+  return `You saved something similar${on}: "${title}". ${match ? statusLine(match, zone, now) : ""}`.trim();
+}
+
+// ---------------------------------------------------------------------------
+// Reminders at the hour the user usually replies
+// ---------------------------------------------------------------------------
+
+// Replies needed before reminders move to the user's usual hour.
+export const MIN_REPLIES_FOR_HABIT = 3;
+
+async function noteReplyHour(d: Deps, u: User, now: Date) {
+  const hours = u.activeHours?.length === 24 ? [...u.activeHours] : Array<number>(24).fill(0);
+  hours[localHour(now, zoneOf(u))]! += 1;
+  u.activeHours = hours;
+  await d.repo.updateUser(u.id, { activeHours: hours });
+}
+
+// The hour the user answers reminders most often, once there is enough data.
+export function preferredHour(hours: number[] | null): number | null {
+  if (!hours || hours.length !== 24) return null;
+  const total = hours.reduce((a, b) => a + b, 0);
+  if (total < MIN_REPLIES_FOR_HABIT) return null;
+  let best = 0;
+  for (let h = 1; h < 24; h++) if (hours[h]! > hours[best]!) best = h;
+  return best;
+}
+
+// `when` moved to the user's usual hour on the same local day (or the next
+// day if that hour has already passed). Null when there is no habit yet or
+// nothing changes.
+function usualHour(u: User, when: Date, now: Date): Date | null {
+  const h = preferredHour(u.activeHours);
+  if (h === null) return null;
+  let at = atLocalHour(when, zoneOf(u), h);
+  if (at.getTime() < now.getTime() + 30 * 60_000) at = addDays(at, 1);
+  return Math.abs(at.getTime() - when.getTime()) < 60_000 ? null : at;
+}
+
+// ---------------------------------------------------------------------------
+// Learning paths and topics
+// ---------------------------------------------------------------------------
+
+const saveTitle = (line: string) => line.replace(/^\[SAVE\]\s*/, "").split(" | ")[0]!.trim();
+
+async function learningPath(d: Deps, u: User, topic: string) {
+  if (!topic) return void (await d.out.send(u.chatId, "Send /path and a topic, like /path video editing."));
+  await d.out.typing(u.chatId);
+  const memories = await recall(d, u, `Saved posts about ${topic}`, 15);
+  const saves = [...new Set(memories.filter((m) => m.text.startsWith("[SAVE]")).map((m) => saveTitle(m.text)).filter(Boolean))];
+  if (saves.length < 2) {
+    await d.out.send(u.chatId, `I found ${saves.length ? "one saved post" : "no saved posts"} about ${esc(topic)}. Save at least two, then try again.`);
+    return;
+  }
+  let p;
+  try {
+    p = await ask(d, "path", PathSchema, pathPrompt(topic, saves));
+  } catch (e) {
+    d.log("path failed", String(e));
+    await d.out.send(u.chatId, "I could not build the path right now. Try again in a minute.");
+    return;
+  }
+  const steps = p.steps.map((s) => s.text);
+  const lines = p.steps.map((s, i) => `${i + 1}. ${esc(s.text)}${s.from && saves.includes(s.from) ? `\n   <i>from "${esc(s.from)}"</i>` : ""}`);
+  await setPending(d, u, { kind: "path", title: p.title, steps });
+  await d.out.send(
+    u.chatId,
+    clip([`<b>${esc(p.title)}</b>`, `Built from ${saves.length} of your saves.`, "", ...lines].join("\n")),
+    [[{ text: "Start tomorrow at 09:00", data: "pa:go" }]],
+  );
+}
+
+async function startPath(d: Deps, u: User, title: string, steps: string[]) {
+  const tz = zoneOf(u);
+  const now = d.now();
+  const at = tomorrowAt(now, tz, "09:00");
+  const payload: TaskPayload = { title, raw: `/path ${title}`, details: [], plan: steps };
+  const created = await d.repo.createItem({ userId: u.id, kind: "task", status: "open", payload, gapDays: 1, dueAt: at, nextAt: at });
+  await setPending(d, u, null);
+  await d.out.send(u.chatId, `Got it. ${formatWhen(at, tz, now)}. I will send the path then, starting with step 1.`, confirmButtons(u, created.id));
+  await remember(d, u, memoryLine.task({ title, when: formatWhen(at, tz), details: ["learning path built from saved posts"], plan: steps }));
+}
+
+async function topics(d: Deps, u: User) {
+  const items = (await d.repo.listItems(u.id, ["open", "quiet", "done", "dropped"], "save")).slice(-80);
+  if (items.length < 3) return void (await d.out.send(u.chatId, "Save a few more posts first. I group them once you have at least three."));
+  await d.out.typing(u.chatId);
+  let t;
+  try {
+    t = await ask(d, "topics", TopicsSchema, topicsPrompt(items.map((i) => ({ id: i.id, title: i.payload.title }))));
+  } catch (e) {
+    d.log("topics failed", String(e));
+    await d.out.send(u.chatId, "I could not group your saves right now. Try again in a minute.");
+    return;
+  }
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const used = new Set<number>();
+  const blocks: string[] = [];
+  for (const topic of t.topics) {
+    const group = topic.ids.map((id) => byId.get(id)).filter((i): i is Item => !!i && !used.has(i.id));
+    if (!group.length) continue;
+    group.forEach((i) => used.add(i.id));
+    const done = group.filter((i) => i.status === "done").length;
+    const open = group.filter((i) => i.status === "open" || i.status === "quiet");
+    const next = open[0] ? `\nNext up: ${esc(open[0].payload.title)}` : "";
+    blocks.push(`<b>${esc(topic.name)}</b>: ${group.length} saved, ${done} done${next}`);
+  }
+  const rest = items.filter((i) => !used.has(i.id)).length;
+  if (rest) blocks.push(`<b>Other</b>: ${rest} saved`);
+  await d.out.send(u.chatId, clip([`<b>Your saves by topic</b>`, "", blocks.join("\n\n"), "", "Send /path and a topic to turn one into a plan."].join("\n")));
+}
+
+// ---------------------------------------------------------------------------
+// Accountability buddy
+// ---------------------------------------------------------------------------
+
+const nameOf = (u: User) => u.firstName || "Your friend";
+
+const confirmButtons = (u: User, itemId: number): Button[][] | undefined => (u.buddyId ? [[{ text: "Share with buddy", data: `sb:${itemId}` }]] : undefined);
+
+// Messages the user's buddy. False when there is no buddy or they blocked the bot.
+async function tellBuddy(d: Deps, u: User, html: string): Promise<boolean> {
+  if (!u.buddyId) return false;
+  const b = await d.repo.getUser(u.buddyId);
+  if (!b) return false;
+  try {
+    await d.out.send(b.chatId, html);
+    return true;
+  } catch (e) {
+    d.log("buddy message failed", String((e as Error).message ?? e));
+    return false;
+  }
+}
+
+async function buddyCommand(d: Deps, u: User) {
+  if (u.buddyId) {
+    const b = await d.repo.getUser(u.buddyId);
+    await d.out.send(
+      u.chatId,
+      `Your accountability buddy is ${esc(b?.firstName || "a friend")}. They only hear about goals you share with them: when you miss a reminder, and when you finish.`,
+      [[{ text: "Remove buddy", data: "bd:rm" }]],
+    );
+    return;
+  }
+  const token = u.buddyInvite ?? randomBytes(9).toString("base64url");
+  if (!u.buddyInvite) await d.repo.updateUser(u.id, { buddyInvite: token });
+  await d.out.send(
+    u.chatId,
+    [
+      "Send this link to a friend:",
+      `https://t.me/${d.botUsername}?start=buddy_${token}`,
+      "",
+      'When they open it and tap Start, they become your accountability buddy. Then tap "Share with buddy" when you save a goal. They only hear about goals you share: when you miss a reminder, and when you finish.',
+    ].join("\n"),
+  );
+}
+
+async function acceptBuddy(d: Deps, u: User, token: string) {
+  const owner = /^[A-Za-z0-9_-]{6,64}$/.test(token) ? await d.repo.findUserByBuddyInvite(token) : null;
+  if (!owner) {
+    await d.out.send(u.chatId, "That buddy link is no longer valid. Ask your friend to send /buddy for a new one.");
+    return;
+  }
+  if (owner.id === u.id) {
+    await d.out.send(u.chatId, "That is your own buddy link. Send it to a friend.");
+    return;
+  }
+  await d.repo.updateUser(owner.id, { buddyId: u.id, buddyInvite: null });
+  await d.out.send(
+    u.chatId,
+    `You are now ${esc(owner.firstName || "your friend")}'s accountability buddy. I will only message you about goals they share with you: when they miss a reminder, and when they finish one.\n\nWant to use OctoKeep yourself? Send /start.`,
+  );
+  try {
+    await d.out.send(owner.chatId, `${esc(nameOf(u))} is now your accountability buddy. When you save a goal or set a task, tap "Share with buddy" to let them follow it.`);
+  } catch (e) {
+    d.log("buddy confirm failed", String((e as Error).message ?? e));
+  }
+}
+
+async function shareWithBuddy(d: Deps, u: User, item: Item) {
+  if (!u.buddyId || item.status === "done" || item.status === "dropped" || item.payload.shared) return;
+  await d.repo.updateItem(item.id, u.id, { payload: { ...item.payload, shared: true } });
+  const b = await d.repo.getUser(u.buddyId);
+  const when = item.nextAt ? formatWhen(item.nextAt, b?.timezone ?? zoneOf(u), d.now()) : null;
+  const told = await tellBuddy(
+    d,
+    u,
+    `${esc(nameOf(u))} shared a goal with you: <b>${esc(item.payload.title)}</b>${when ? `, next check-in ${when}` : ""}. I will tell you if they miss a reminder, and when they finish.`,
+  );
+  await d.out.send(u.chatId, told ? `Shared with ${esc(b?.firstName || "your buddy")}.` : "I could not reach your buddy. They may have blocked the bot. Send /buddy to check.");
 }
 
 export { LlmError };
