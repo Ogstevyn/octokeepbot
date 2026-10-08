@@ -1,43 +1,47 @@
-# I built a bot that remembers what I saved and asks if I did it
+# I kept bookmarking things I never did. So I built a bot that remembers, and asks.
 
-I save a lot of posts. Study plans, coding tutorials, "5 things to do before your interview". I almost never act on them. So for Walrus Sessions 8 I built OctoKeep, a Telegram bot that keeps what I save in my own Walrus Memory and keeps asking until I do something with it.
+I save things all day. A tutorial on the split-mask effect in After Effects. A thread on learning Sui Move. A Reel about structuring explainer videos. I tap bookmark, feel a little productive, and never open any of them again.
+
+It isn't that I don't care. Nothing ever comes back for me. A bookmark is a drawer, and drawers don't talk.
+
+So for Walrus Sessions 8 I built OctoKeep, a Telegram bot that remembers what you save and keeps asking until you do something with it.
 
 ## What it does
 
-You send OctoKeep a link. It reads the page or video transcript, sends back a short summary and a few concrete actions, asks whether you plan to act on it, and asks when to check back (two days by default). Then it comes back and asks if you did it. One tap answers, and the answer goes into memory too.
+You send it something: a link, a screenshot of a post, a voice note, or a video. Instagram won't let a server read its posts, so one tester screen-recorded a Reel, split it into two parts and sent both. OctoKeep transcribed them and came back with a title, a summary and three small actions.
 
-It also takes tasks. "I want to build an app on Thursday, remind me" gets up to three short questions (what app, what tools, what is the first step), and on Thursday morning a plan arrives. And you can ask it things: "what have I been ignoring?" or "what did I save about Rust?"
+Then it asks two things. Do you want to act on this? When should I check back? A day, a week, or any time you type, like "5 min" or "6pm". When the time comes, it asks if you did it. One tap answers, and the answer is remembered too.
 
-Instagram cannot be read by a server, so OctoKeep also accepts a screenshot of the post, which a vision model reads, or a screen recording of a Reel, which Whisper transcribes. Voice notes work anywhere you would type.
+It also takes tasks. A tester wrote at 3am: "I just started my coding journey in web3 and I'm currently learning Sui Move... remind me in the next 2 hours to study." OctoKeep asked three short questions: experience level, hours per day, preferred resource. When the time came, it sent a five-step plan, from reading the official docs to deploying a module on a local testnet.
 
-## Where memory lives
+Another tester tried to break it. Remind me to cook. To bath. To take water. To laugh. To touch grass. It caught a time that had already passed and asked for a new one. Cooking came back with a plan that starts, sensibly, with "Rinse rice until water runs clear."
 
-The first design question was what goes into Walrus Memory and what does not. Recall is semantic search. It is very good at "what do I know about this person that relates to this post", and useless for "what is due at 09:00 today". So there are two stores with two jobs.
+## Where the memory lives
 
-Postgres (Neon) is only the schedule: item ids, due times, statuses. Its text is encrypted.
+Each user connects their own Walrus Memory account. OctoKeep never owns the memory. It writes short lines into the user's account: `[SAVE] ...`, `[TASK] ...`, `[OUTCOME] done "Study Sui Move"`. Postgres holds only the schedule: ids, times and statuses, with the text encrypted.
 
-Walrus Memory holds everything OctoKeep knows about me, in my own account under the namespace `octokeep`. Each save is one line (`[SAVE] title | summary | actions | intent | check back`), each task one line, and each outcome one line (`[OUTCOME] done "Pass your first cloud certification"`). When I mention something lasting in chat, like "I'm learning Rust", the relayer's `analyze()` extracts it as a fact.
+Recall is semantic search. It is very good at "what does this person care about" and useless for "what is due at 09:00". So each store does the job it is good at.
 
-Each user connects their own account. They create a delegate key in the Walrus Memory dashboard, send the account ID and key to the bot, and OctoKeep deletes the message, verifies the key against the relayer and stores it encrypted. Deleting that key in the dashboard cuts the bot off at once, and the memories stay with the user.
+Memory is what makes this more than a to-do list. Every summary, reminder and plan recalls related lines first. Send a link you saved last week and it tells you, and says whether you finished it. Ask "what have I been ignoring?" and it answers from your outcomes. `/path rust` turns scattered saves into one ordered plan. And because the memory belongs to the user, the same account can be read from Claude or Cursor through the Walrus Memory MCP server.
 
-## What memory changed
+## The buddy
 
-Before memory, a reminder could only say "You saved X two days ago. Did you do it?" That is a to-do app, and I ignore to-do apps.
-
-With memory, every summary, reminder and plan first recalls related lines. If you save a long course after dropping two others, the summary points that out and the reminder asks only for the first module. If you set "build the budget app on Thursday", the plan pulls in the budgeting post you saved the week before. "What have I been ignoring?" is answered from outcomes, not from a list of open rows. Memory has to change what the bot says, or it is just storage.
-
-[Replace with one real exchange from your own use, quoted from Telegram.]
+Some goals need a person. `/buddy` gives you an invite link for a friend. Share a goal with them, and if you miss a reminder, they get a message. When you finish, they hear that too. During testing, a friend's chat filled up with "ogNla shared a goal with you", which is the kind of gentle social pressure a bookmark never gives you.
 
 ## What was hard
 
-Writes are slow. On mainnet a `remember` plus wait took about 45 seconds in my test, while recall took under 2. A chat reply cannot wait for that, so writes go into a Postgres outbox, the user gets an answer immediately, and the scheduler retries anything that failed. No save is lost to a relayer hiccup.
+Setup. To connect, a user copies an Account ID and a delegate private key from the Walrus Memory dashboard. One tester sent her wallet's private key instead, got rejected, and we finished the setup on a video call. The dashboard has three kinds of keys, and nothing says which one an app needs. Walrus Memory already has an approve-in-browser login for its MCP server. Opening that to apps would fix this.
 
-Reminders need a clock. A Vercel function runs every minute, claims due items with a lease so two runs never send the same reminder, and recalls memory to word each one.
+Writes are slow. Saving a memory took about 45 seconds on mainnet, so writes go into a queue and the user gets a reply straight away.
 
-I also found a few things in the SDK. The one I'd most want fixed: since 0.1.8 the client derives its idempotency key from the text and a 30-minute window, so re-stating a fact within half an hour (a preference that flips back, a habit logged twice) is silently collapsed onto the earlier write, and a recency-sorted recall then returns the stale value. The mock does not model this, so tests pass while production drops the write. I filed it with a reproduction on mainnet: https://github.com/MystenLabs/MemWal/issues/1127.
+I also filed two SDK issues. The serious one, [#1127](https://github.com/MystenLabs/MemWal/issues/1127): re-stating the same fact within 30 minutes is silently collapsed onto the earlier write, so a recency-sorted recall returns the stale value. The small one, [#1128](https://github.com/MystenLabs/MemWal/issues/1128): an IPv6 loopback URL triggers the plaintext-HTTP warning.
 
 ## Numbers
 
-[N] people used OctoKeep over [D] days, storing [M] memories in their own accounts, the smallest account holding [K]. The models are open-weight and run on Groq: [text model] for summaries and routing, Qwen 3.8 for screenshots, Whisper for recordings.
+In the first 48 hours, 16 people started the bot and 6 connected their own Walrus Memory. Together they stored 66 memories: 18 saves, 18 tasks and 23 resolved items. Three accounts passed ten memories, with 25, 19 and 15.
 
-The code is open source at github.com/Ogstevyn/octobot, and the bot is at t.me/OctoKeep_bot.
+It runs on open-weight models on Groq: Qwen 3.8 for text and screenshots, Whisper for recordings and voice notes.
+
+Next: one-tap connect, and group chats, so a team's shared links stop dying in the scroll.
+
+Try it at [t.me/OctoKeep_bot](https://t.me/OctoKeep_bot). The code is at [github.com/Ogstevyn/octobot](https://github.com/Ogstevyn/octobot).
